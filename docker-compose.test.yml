@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: pnl-postgres-test
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pnl_test_user
+      POSTGRES_PASSWORD: pnl_test_password
+      POSTGRES_DB: pnl_dashboard_test
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pnl_test_user -d pnl_dashboard_test"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis
+  redis:
+    image: redis:7-alpine
+    container_name: pnl-redis-test
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Next.js Application (Test Build)
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.prod
+    container_name: pnl-app-test
+    restart: unless-stopped
+    ports:
+      - "3001:3000"
+    environment:
+      - NODE_ENV=test
+      - DATABASE_URL=postgresql://pnl_test_user:pnl_test_password@postgres:5432/pnl_dashboard_test
+      - REDIS_URL=redis://redis:6379
+      - NEXTAUTH_URL=http://localhost:3001
+      - NEXTAUTH_SECRET=test-secret-change-in-production
+      - ENCRYPTION_KEY=test-encryption-key-32-bytes-long
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    command: sh -c "npx prisma migrate deploy && node server.js"
+
+volumes:
+  postgres_test_data:
+
+networks:
+  default:
+    name: pnl-network-test

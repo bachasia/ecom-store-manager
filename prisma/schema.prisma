@@ -1,0 +1,254 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User & Authentication
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  password      String    // hashed
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  stores        Store[]
+  accounts      Account[]
+  sessions      Session[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// Store Management
+model Store {
+  id          String   @id @default(cuid())
+  userId      String
+  name        String
+  platform    String   // 'shopbase' | 'woocommerce'
+  apiUrl      String   // Store URL
+  apiKey      String   // Encrypted
+  apiSecret   String?  // Encrypted (for WooCommerce)
+  isActive    Boolean  @default(true)
+  currency    String   @default("USD")
+  timezone    String   @default("UTC")
+  
+  lastSyncAt  DateTime?
+  lastSyncStatus String? // 'success' | 'error' | 'in_progress'
+  lastSyncError  String? @db.Text
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  products    Product[]
+  orders      Order[]
+  adsCosts    AdsCost[]
+  syncLogs    SyncLog[]
+  
+  @@index([userId])
+}
+
+// Products & SKUs
+model Product {
+  id              String   @id @default(cuid())
+  storeId         String
+  externalId      String   // ID from platform
+  name            String
+  sku             String
+  variantName     String?
+  baseCost        Decimal  @default(0) @db.Decimal(10, 2) // COGS - manually set
+  platformCost    Decimal? @db.Decimal(10, 2) // Cost from platform (if available)
+  price           Decimal  @db.Decimal(10, 2)
+  isActive        Boolean  @default(true)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  store           Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  orderItems      OrderItem[]
+  
+  @@unique([storeId, externalId, sku])
+  @@index([storeId])
+  @@index([sku])
+}
+
+// Orders
+model Order {
+  id                String   @id @default(cuid())
+  storeId           String
+  externalId        String   // Order ID from platform
+  orderNumber       String
+  orderDate         DateTime
+  status            String   // 'pending', 'processing', 'completed', 'cancelled', 'refunded'
+  
+  // Customer Info
+  customerEmail     String?
+  customerName      String?
+  customerCountry   String?
+  
+  // Financial Data
+  subtotal          Decimal  @db.Decimal(10, 2)
+  discount          Decimal  @default(0) @db.Decimal(10, 2)
+  shipping          Decimal  @default(0) @db.Decimal(10, 2)
+  tax               Decimal  @default(0) @db.Decimal(10, 2)
+  total             Decimal  @db.Decimal(10, 2) // Final order total
+  refundAmount      Decimal  @default(0) @db.Decimal(10, 2)
+  
+  // Payment Info
+  paymentMethod     String?
+  paymentGatewayId  String?
+  transactionFee    Decimal  @default(0) @db.Decimal(10, 2) // Calculated
+  
+  // Marketing Attribution
+  utmSource         String?
+  utmMedium         String?
+  utmCampaign       String?
+  
+  // P&L Calculations (cached)
+  totalCOGS         Decimal  @default(0) @db.Decimal(10, 2)
+  allocatedAdsCost  Decimal  @default(0) @db.Decimal(10, 2)
+  grossProfit       Decimal  @default(0) @db.Decimal(10, 2)
+  netProfit         Decimal  @default(0) @db.Decimal(10, 2)
+  profitMargin      Decimal  @default(0) @db.Decimal(5, 2) // Percentage
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  store             Store           @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  paymentGateway    PaymentGateway? @relation(fields: [paymentGatewayId], references: [id])
+  orderItems        OrderItem[]
+  
+  @@unique([storeId, externalId])
+  @@index([storeId])
+  @@index([orderDate])
+  @@index([status])
+}
+
+// Order Line Items
+model OrderItem {
+  id          String  @id @default(cuid())
+  orderId     String
+  productId   String?
+  
+  sku         String
+  productName String
+  quantity    Int
+  price       Decimal @db.Decimal(10, 2) // Unit price
+  total       Decimal @db.Decimal(10, 2) // quantity * price
+  
+  // Calculated
+  unitCost    Decimal @default(0) @db.Decimal(10, 2) // From Product.baseCost
+  totalCost   Decimal @default(0) @db.Decimal(10, 2) // unitCost * quantity
+  
+  createdAt   DateTime @default(now())
+  
+  order       Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product     Product? @relation(fields: [productId], references: [id])
+  
+  @@index([orderId])
+  @@index([productId])
+  @@index([sku])
+}
+
+// Advertising Costs
+model AdsCost {
+  id            String   @id @default(cuid())
+  storeId       String
+  date          DateTime @db.Date
+  platform      String   // 'facebook' | 'google' | 'manual'
+  
+  campaignName  String?
+  adsetName     String?
+  
+  spend         Decimal  @db.Decimal(10, 2)
+  impressions   Int?
+  clicks        Int?
+  
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  
+  @@unique([storeId, date, platform, campaignName, adsetName])
+  @@index([storeId])
+  @@index([date])
+}
+
+// Payment Gateway Settings
+model PaymentGateway {
+  id              String  @id @default(cuid())
+  name            String  @unique // 'stripe', 'paypal', 'square', etc.
+  displayName     String
+  feePercentage   Decimal @default(0) @db.Decimal(5, 2) // e.g., 2.9
+  feeFixed        Decimal @default(0) @db.Decimal(10, 2) // e.g., 0.30
+  isActive        Boolean @default(true)
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  orders          Order[]
+}
+
+// Sync Logs
+model SyncLog {
+  id              String   @id @default(cuid())
+  storeId         String
+  syncType        String   // 'orders' | 'products'
+  status          String   // 'started' | 'success' | 'error'
+  recordsProcessed Int     @default(0)
+  recordsCreated  Int      @default(0)
+  recordsUpdated  Int      @default(0)
+  errorMessage    String?  @db.Text
+  
+  startedAt       DateTime @default(now())
+  completedAt     DateTime?
+  
+  store           Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  
+  @@index([storeId])
+  @@index([startedAt])
+}
+
+// App Settings
+model AppSetting {
+  id          String   @id @default(cuid())
+  key         String   @unique
+  value       String   @db.Text
+  description String?
+  
+  updatedAt   DateTime @updatedAt
+}
