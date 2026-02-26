@@ -7,6 +7,7 @@ import { z } from "zod"
 const gatewaySchema = z.object({
   name: z.string().min(1, "Gateway name is required"),
   displayName: z.string().min(1, "Display name is required"),
+  matchKeywords: z.string().optional(),
   feePercentage: z.number().min(0).max(100),
   feeFixed: z.number().min(0),
   isActive: z.boolean().default(true),

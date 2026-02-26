@@ -17,8 +17,27 @@ export interface WooCommerceOrder {
     email: string
     first_name: string
     last_name: string
+    address_1?: string
+    address_2?: string
+    city?: string
+    state?: string
+    postcode?: string
     country: string
   }
+  shipping?: {
+    first_name?: string
+    last_name?: string
+    address_1?: string
+    address_2?: string
+    city?: string
+    state?: string
+    postcode?: string
+    country?: string
+  }
+  meta_data?: Array<{
+    key: string
+    value: any
+  }>
   line_items: Array<{
     id: number
     sku: string
@@ -42,6 +61,10 @@ export interface WooCommerceProduct {
   price: string
   type: string
   variations?: number[]
+  images: Array<{
+    id: number
+    src: string
+  }>
 }
 
 export interface WooCommerceVariation {
@@ -52,6 +75,10 @@ export interface WooCommerceVariation {
     name: string
     option: string
   }>
+  image: {
+    id: number
+    src: string
+  } | null
 }
 
 export class WooCommerceClient {
@@ -131,11 +158,16 @@ export class WooCommerceClient {
   async getProducts(params: {
     perPage?: number
     page?: number
+    modifiedAfter?: string  // ISO 8601 — chỉ lấy products được sửa sau thời điểm này
   }): Promise<WooCommerceProduct[]> {
     try {
-      const queryParams = {
+      const queryParams: any = {
         per_page: params.perPage || 100,
         page: params.page || 1,
+      }
+
+      if (params.modifiedAfter) {
+        queryParams.modified_after = params.modifiedAfter
       }
 
       const response = await this.client.get('/products', { params: queryParams })
@@ -148,29 +180,39 @@ export class WooCommerceClient {
   }
 
   async getProductVariations(productId: number): Promise<WooCommerceVariation[]> {
-    try {
-      const response = await this.client.get(`/products/${productId}/variations`, {
-        params: { per_page: 100 }
-      })
-      
-      return response.data || []
-    } catch (error: any) {
-      console.error('WooCommerce getProductVariations error:', error.response?.data || error.message)
-      throw new Error(error.response?.data?.message || 'Failed to fetch variations')
+    const allVariations: WooCommerceVariation[] = []
+    const PAGE_SIZE = 100
+    let page = 1
+
+    while (true) {
+      try {
+        const response = await this.client.get(`/products/${productId}/variations`, {
+          params: { per_page: PAGE_SIZE, page }
+        })
+        const variations: WooCommerceVariation[] = response.data || []
+        allVariations.push(...variations)
+        if (variations.length < PAGE_SIZE) break
+        page++
+      } catch (error: any) {
+        console.error('WooCommerce getProductVariations error:', error.response?.data || error.message)
+        throw new Error(error.response?.data?.message || 'Failed to fetch variations')
+      }
     }
+
+    return allVariations
   }
 
-  async getAllProducts(): Promise<WooCommerceProduct[]> {
+  async getAllProducts(params: { modifiedAfter?: string } = {}): Promise<WooCommerceProduct[]> {
     const allProducts: WooCommerceProduct[] = []
+    const PAGE_SIZE = 100
     let page = 1
-    let hasMore = true
 
-    while (hasMore) {
-      const products = await this.getProducts({ page, perPage: 100 })
+    while (true) {
+      const products = await this.getProducts({ page, perPage: PAGE_SIZE, modifiedAfter: params.modifiedAfter })
       allProducts.push(...products)
       
-      if (products.length < 100) {
-        hasMore = false
+      if (products.length < PAGE_SIZE) {
+        break
       } else {
         page++
       }

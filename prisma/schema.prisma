@@ -86,13 +86,15 @@ model Store {
 model Product {
   id              String   @id @default(cuid())
   storeId         String
-  externalId      String   // ID from platform
+  externalId      String   // ID from platform (variant-level)
+  parentExternalId String? // ID of parent product (product-level) — null for simple products
   name            String
   sku             String
   variantName     String?
   baseCost        Decimal  @default(0) @db.Decimal(10, 2) // COGS - manually set
   platformCost    Decimal? @db.Decimal(10, 2) // Cost from platform (if available)
   price           Decimal  @db.Decimal(10, 2)
+  imageUrl        String?  // Product image from platform
   isActive        Boolean  @default(true)
   
   createdAt       DateTime @default(now())
@@ -104,6 +106,9 @@ model Product {
   @@unique([storeId, externalId, sku])
   @@index([storeId])
   @@index([sku])
+  @@index([storeId, parentExternalId])
+  @@index([storeId, name])
+  @@index([storeId, sku])
 }
 
 // Orders
@@ -119,6 +124,8 @@ model Order {
   customerEmail     String?
   customerName      String?
   customerCountry   String?
+  billingAddress    String?  @db.Text
+  shippingAddress   String?  @db.Text
   
   // Financial Data
   subtotal          Decimal  @db.Decimal(10, 2)
@@ -213,6 +220,7 @@ model PaymentGateway {
   id              String  @id @default(cuid())
   name            String  @unique // 'stripe', 'paypal', 'square', etc.
   displayName     String
+  matchKeywords   String? @db.Text // Comma-separated aliases: paypal,paypal-express
   feePercentage   Decimal @default(0) @db.Decimal(5, 2) // e.g., 2.9
   feeFixed        Decimal @default(0) @db.Decimal(10, 2) // e.g., 0.30
   isActive        Boolean @default(true)

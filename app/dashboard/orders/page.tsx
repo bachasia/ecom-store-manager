@@ -12,6 +12,12 @@ interface Order {
   status: string
   customerName: string | null
   customerEmail: string | null
+  customerCountry?: string | null
+  utmMedium?: string | null
+  transactionFee?: number
+  paymentGateway?: {
+    displayName?: string | null
+  } | null
   total: number
   refundAmount: number
   netProfit: number
@@ -183,6 +189,7 @@ export default function OrdersPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('customerName')}</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">{t('store')}</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase">Payment</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('total')}</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">{t('profit')}</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase">Margin</th>
@@ -199,9 +206,16 @@ export default function OrdersPage() {
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-900">{order.customerName || 'N/A'}</div>
                         <div className="text-xs text-gray-500">{order.customerEmail || 'N/A'}</div>
+                        <div className="text-xs text-gray-400">
+                          {order.customerCountry || 'N/A'}{order.utmMedium ? ` • ${order.utmMedium}` : ''}
+                        </div>
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-600">{order.store.name}</td>
                       <td className="px-6 py-4">{getStatusBadge(order.status)}</td>
+                      <td className="px-6 py-4">
+                        <div className="text-sm text-gray-900">{order.paymentGateway?.displayName || 'N/A'}</div>
+                        <div className="text-xs text-gray-400">Fee: {formatCurrency(Number(order.transactionFee || 0))}</div>
+                      </td>
                       <td className="px-6 py-4 text-right">
                         <div className="text-sm font-medium text-gray-900">{formatCurrency(Number(order.total))}</div>
                         {Number(order.refundAmount) > 0 && <div className="text-xs text-red-600">-{formatCurrency(Number(order.refundAmount))}</div>}
@@ -276,6 +290,11 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                   <div className="flex justify-between"><dt className="text-gray-500">{t('orderNumber')}</dt><dd className="font-medium">#{order.order.orderNumber}</dd></div>
                   <div className="flex justify-between"><dt className="text-gray-500">{t('storeName')}</dt><dd className="font-medium">{order.order.store.name}</dd></div>
                   <div className="flex justify-between"><dt className="text-gray-500">Status:</dt><dd className="font-medium">{order.order.status}</dd></div>
+                  <div className="pt-2 border-t" />
+                  <div className="text-xs font-semibold text-gray-700 uppercase tracking-wide">{t('paymentInfo')}</div>
+                  <div className="flex justify-between"><dt className="text-gray-500">{t('paymentMethod')}:</dt><dd className="font-medium">{order.order.paymentMethod || 'N/A'}</dd></div>
+                  <div className="flex justify-between"><dt className="text-gray-500">{t('paymentGateway')}:</dt><dd className="font-medium">{order.order.paymentGateway?.displayName || 'N/A'}</dd></div>
+                  <div className="flex justify-between"><dt className="text-gray-500">{t('transactionFee')}:</dt><dd className="font-medium">{formatCurrency(Number(order.order.transactionFee || 0))}</dd></div>
                 </dl>
               </div>
               <div>
@@ -283,6 +302,10 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                 <dl className="space-y-2 text-sm">
                   <div className="flex justify-between"><dt className="text-gray-500">{t('customerName')}:</dt><dd className="font-medium">{order.order.customerName || 'N/A'}</dd></div>
                   <div className="flex justify-between"><dt className="text-gray-500">Email:</dt><dd className="font-medium">{order.order.customerEmail || 'N/A'}</dd></div>
+                  <div className="flex justify-between"><dt className="text-gray-500">Country:</dt><dd className="font-medium">{order.order.customerCountry || 'N/A'}</dd></div>
+                  <div className="flex justify-between"><dt className="text-gray-500">Billing:</dt><dd className="font-medium text-right max-w-[320px]">{order.order.billingAddress || 'N/A'}</dd></div>
+                  <div className="flex justify-between"><dt className="text-gray-500">Shipping:</dt><dd className="font-medium text-right max-w-[320px]">{order.order.shippingAddress || 'N/A'}</dd></div>
+                  <div className="flex justify-between"><dt className="text-gray-500">UTM:</dt><dd className="font-medium text-right">{order.order.utmMedium || 'not_set'}{order.order.utmSource ? ` (${order.order.utmSource})` : ''}</dd></div>
                 </dl>
               </div>
             </div>

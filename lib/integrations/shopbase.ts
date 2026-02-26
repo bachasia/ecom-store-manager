@@ -20,9 +20,33 @@ export interface ShopbaseOrder {
       country: string
     }
   }
+  billing_address?: {
+    first_name?: string
+    last_name?: string
+    address1?: string
+    address2?: string
+    city?: string
+    province?: string
+    zip?: string
+    country?: string
+    phone?: string
+  }
+  shipping_address?: {
+    first_name?: string
+    last_name?: string
+    address1?: string
+    address2?: string
+    city?: string
+    province?: string
+    zip?: string
+    country?: string
+    phone?: string
+  }
   line_items: Array<{
     id: number
     sku: string
+    variant_id?: number
+    product_id?: number
     name: string
     quantity: number
     price: string
@@ -31,34 +55,51 @@ export interface ShopbaseOrder {
     price: string
   }>
   gateway?: string
+  payment_gateway_names?: string[]
+  source_name?: string
+  referring_site?: string
+  landing_site?: string
   landing_site_ref?: string
+  note_attributes?: Array<{
+    name?: string
+    value?: string
+  }>
 }
 
 export interface ShopbaseProduct {
   id: number
   title: string
+  images: Array<{
+    id: number
+    src: string
+    variant_ids: number[]  // variant IDs sử dụng ảnh này
+  }>
   variants: Array<{
     id: number
     sku: string
     title: string
     price: string
     inventory_quantity: number
+    image_id: number | null  // ID của ảnh gắn với variant này
   }>
 }
 
 export class ShopbaseClient {
   private client: AxiosInstance
   private storeUrl: string
-  private apiKey: string
 
-  constructor(storeUrl: string, encryptedApiKey: string) {
+  constructor(storeUrl: string, encryptedApiKey: string, encryptedApiSecret: string) {
     this.storeUrl = storeUrl.replace(/\/$/, '') // Remove trailing slash
-    this.apiKey = decrypt(encryptedApiKey)
-    
+    const apiKey = decrypt(encryptedApiKey)
+    const apiPassword = decrypt(encryptedApiSecret)
+
     this.client = axios.create({
       baseURL: `${this.storeUrl}/admin`,
+      auth: {
+        username: apiKey,
+        password: apiPassword,
+      },
       headers: {
-        'X-ShopBase-Access-Token': this.apiKey,
         'Content-Type': 'application/json',
       },
       timeout: 30000,
@@ -75,7 +116,7 @@ export class ShopbaseClient {
     } catch (error: any) {
       return {
         success: false,
-        message: error.response?.data?.errors || error.message || 'Cannot connect',
+        message: error.response?.data?.errors || error.response?.data?.error || error.message || 'Cannot connect',
       }
     }
   }
@@ -84,6 +125,9 @@ export class ShopbaseClient {
     createdAtMin?: string
     createdAtMax?: string
     updatedAtMin?: string
+    orderStatus?: string
+    financialStatus?: string
+    fulfillmentStatus?: string
     limit?: number
     page?: number
     status?: string
@@ -97,6 +141,9 @@ export class ShopbaseClient {
       if (params.createdAtMin) queryParams.created_at_min = params.createdAtMin
       if (params.createdAtMax) queryParams.created_at_max = params.createdAtMax
       if (params.updatedAtMin) queryParams.updated_at_min = params.updatedAtMin
+      if (params.orderStatus) queryParams.order_status = params.orderStatus
+      if (params.financialStatus) queryParams.financial_status = params.financialStatus
+      if (params.fulfillmentStatus) queryParams.fulfillment_status = params.fulfillmentStatus
       if (params.status) queryParams.status = params.status
 
       const response = await this.client.get('/orders.json', { params: queryParams })
@@ -107,18 +154,20 @@ export class ShopbaseClient {
       return response.data.orders || []
     } catch (error: any) {
       console.error('Shopbase getOrders error:', error.response?.data || error.message)
-      throw new Error(error.response?.data?.errors || 'Failed to fetch orders')
+      const errMsg = error.response?.data?.errors || error.response?.data?.error || error.message || 'Failed to fetch orders'
+      throw new Error(errMsg)
     }
   }
 
-  async getOrder(orderId: number): Promise<ShopbaseOrder> {
+  async getOrder(orderId: number, timeoutMs = 10000): Promise<ShopbaseOrder> {
     try {
-      const response = await this.client.get(`/orders/${orderId}.json`)
+      const response = await this.client.get(`/orders/${orderId}.json`, { timeout: timeoutMs })
       await this.sleep(500)
       return response.data.order
     } catch (error: any) {
       console.error('Shopbase getOrder error:', error.response?.data || error.message)
-      throw new Error(error.response?.data?.errors || 'Failed to fetch order')
+      const errMsg = error.response?.data?.errors || error.response?.data?.error || error.message || 'Failed to fetch order'
+      throw new Error(errMsg)
     }
   }
 
@@ -126,9 +175,10 @@ export class ShopbaseClient {
     limit?: number
     page?: number
   }): Promise<ShopbaseProduct[]> {
+    const limit = params.limit || 50
     try {
       const queryParams = {
-        limit: params.limit || 50,
+        limit,
         page: params.page || 1,
       }
 
@@ -138,24 +188,21 @@ export class ShopbaseClient {
       return response.data.products || []
     } catch (error: any) {
       console.error('Shopbase getProducts error:', error.response?.data || error.message)
-      throw new Error(error.response?.data?.errors || 'Failed to fetch products')
+      const errMsg = error.response?.data?.errors || error.response?.data?.error || error.message || 'Failed to fetch products'
+      throw new Error(errMsg)
     }
   }
 
   async getAllProducts(): Promise<ShopbaseProduct[]> {
     const allProducts: ShopbaseProduct[] = []
+    const PAGE_SIZE = 50
     let page = 1
-    let hasMore = true
 
-    while (hasMore) {
-      const products = await this.getProducts({ page, limit: 50 })
+    while (true) {
+      const products = await this.getProducts({ page, limit: PAGE_SIZE })
       allProducts.push(...products)
-      
-      if (products.length < 50) {
-        hasMore = false
-      } else {
-        page++
-      }
+      if (products.length < PAGE_SIZE) break
+      page++
     }
 
     return allProducts
@@ -164,24 +211,21 @@ export class ShopbaseClient {
   async getAllOrders(params: {
     createdAtMin?: string
     createdAtMax?: string
+    updatedAtMin?: string
+    orderStatus?: string
+    financialStatus?: string
+    fulfillmentStatus?: string
+    status?: string
   }): Promise<ShopbaseOrder[]> {
     const allOrders: ShopbaseOrder[] = []
+    const PAGE_SIZE = 50
     let page = 1
-    let hasMore = true
 
-    while (hasMore) {
-      const orders = await this.getOrders({ 
-        ...params, 
-        page, 
-        limit: 50 
-      })
+    while (true) {
+      const orders = await this.getOrders({ ...params, page, limit: PAGE_SIZE })
       allOrders.push(...orders)
-      
-      if (orders.length < 50) {
-        hasMore = false
-      } else {
-        page++
-      }
+      if (orders.length < PAGE_SIZE) break
+      page++
     }
 
     return allOrders

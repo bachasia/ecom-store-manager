@@ -10,7 +10,11 @@
     "totalRevenue": "Tổng Doanh Thu",
     "netProfit": "Lợi Nhuận Ròng",
     "profitMargin": "Tỷ Suất Lợi Nhuận",
-    "roas": "ROAS"
+    "roas": "ROAS",
+    "perDay": "Theo ngày",
+    "vsPrevPeriod": "so với kỳ trước",
+    "high": "Cao",
+    "low": "Thấp"
   },
   "dashboard": {
     "title": "Dashboard Tổng Quan",
@@ -33,10 +37,12 @@
     "cogs": "Chi phí hàng bán",
     "transactionFees": "Phí giao dịch",
     "adCosts": "Chi phí quảng cáo",
-    "byNetProfit": "Theo lợi nhuận ròng"
+    "byNetProfit": "Theo lợi nhuận ròng",
+    "revenueByCountry": "Doanh thu theo quốc gia"
   },
   "topProducts": {
     "title": "Top Sản Phẩm",
+    "byNetProfit": "Theo lợi nhuận ròng",
     "sold": "đã bán",
     "orders": "đơn"
   },
@@ -62,6 +68,10 @@
     "orderNumber": "Số đơn:",
     "storeName": "Cửa hàng:",
     "customerName": "Tên:",
+    "paymentInfo": "Thanh toán",
+    "paymentMethod": "Phương thức",
+    "paymentGateway": "Cổng thanh toán",
+    "transactionFee": "Phí giao dịch",
     "revenue": "Doanh thu:",
     "grossProfit": "Lợi nhuận gộp:",
     "adCost": "Chi phí quảng cáo:",
@@ -103,7 +113,9 @@
     "noValidData": "Không tìm thấy dữ liệu hợp lệ trong file CSV",
     "uploadFailed": "Đã xảy ra lỗi khi upload file",
     "uploadSuccess": "✅ Đã cập nhật {updated} sản phẩm",
-    "skuNotFound": "SKU không tìm thấy:"
+    "skuNotFound": "SKU không tìm thấy:",
+    "platformLabel": "Nền tảng:",
+    "allPlatforms": "Tất cả"
   },
   "stores": {
     "title": "Quản Lý Cửa Hàng",
@@ -133,16 +145,34 @@
     "storeUrl": "URL cửa hàng",
     "apiKey": "API Key",
     "apiKeyPlaceholder": "Nhập API Key",
-    "apiSecret": "API Secret",
-    "apiSecretPlaceholder": "Nhập API Secret",
+    "apiPassword": "API Password",
+    "apiPasswordPlaceholder": "Nhập API Password",
+    "apiSecret": "Consumer Secret",
+    "apiSecretPlaceholder": "Nhập Consumer Secret",
     "consumerKey": "Consumer Key",
     "consumerSecret": "Consumer Secret",
-    "credentialsOptionalHint": "Để trống API key/secret nếu muốn giữ thông tin hiện tại.",
+    "credentialsOptionalHint": "Để trống API key/password nếu muốn giữ thông tin hiện tại.",
     "cancel": "Hủy",
     "create": "Tạo cửa hàng",
     "creating": "Đang tạo...",
     "createError": "Đã xảy ra lỗi khi tạo cửa hàng",
-    "loading": "Đang tải..."
+    "updateError": "Đã xảy ra lỗi khi cập nhật cửa hàng",
+    "loading": "Đang tải...",
+    "syncing": "Đang sync...",
+    "hideAndRunBackground": "Ẩn và chạy nền",
+    "elapsedSeconds": "Đã chạy {seconds}s",
+    "cancelled": "Đã hủy",
+    "cancelledByUser": "Đã hủy bởi người dùng",
+    "completed": "Hoàn thành",
+    "stopSync": "Dừng sync",
+    "close": "Đóng",
+    "productCount": "{count} sản phẩm",
+    "orderCount": "{count} đơn hàng",
+    "edit": "Chỉnh sửa",
+    "clearData": "Xóa toàn bộ dữ liệu",
+    "deleteStore": "Xóa cửa hàng",
+    "confirmClearData": "Xóa toàn bộ dữ liệu của \"{name}\"? Thao tác này sẽ xóa {count} bản ghi (sản phẩm + đơn hàng). Cấu hình cửa hàng vẫn được giữ lại.",
+    "clearDataError": "Đã xảy ra lỗi khi xóa dữ liệu cửa hàng"
   },
   "ads": {
     "title": "Quảng Cáo",

@@ -7,6 +7,7 @@ interface PaymentGateway {
   id: string
   name: string
   displayName: string
+  matchKeywords?: string | null
   feePercentage: number
   feeFixed: number
   isActive: boolean
@@ -18,6 +19,7 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({
+    matchKeywords: "",
     feePercentage: 0,
     feeFixed: 0,
   })
@@ -43,6 +45,7 @@ export default function SettingsPage() {
   const handleEdit = (gateway: PaymentGateway) => {
     setEditingId(gateway.id)
     setEditForm({
+      matchKeywords: gateway.matchKeywords || "",
       feePercentage: gateway.feePercentage,
       feeFixed: gateway.feeFixed,
     })
@@ -141,6 +144,16 @@ export default function SettingsPage() {
 
                     {editingId === gateway.id ? (
                       <div className="mt-3 flex items-center space-x-4">
+                        <div className="flex items-center space-x-2 min-w-[280px]">
+                          <label className="text-sm text-gray-600">Aliases</label>
+                          <input
+                            type="text"
+                            value={editForm.matchKeywords}
+                            onChange={(e) => setEditForm({ ...editForm, matchKeywords: e.target.value })}
+                            placeholder="paypal,paypal-express"
+                            className="w-full px-3 py-1.5 rounded-lg border border-gray-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                          />
+                        </div>
                         <div className="flex items-center space-x-2">
                           <label className="text-sm text-gray-600">{t('feePercent')}</label>
                           <input
@@ -182,6 +195,9 @@ export default function SettingsPage() {
                           {t('fee')}: <span className="font-semibold text-gray-900">{gateway.feePercentage}%</span> + 
                           <span className="font-semibold text-gray-900"> ${Number(gateway.feeFixed).toFixed(2)}</span>
                         </span>
+                        {gateway.matchKeywords && (
+                          <span className="text-xs text-gray-500">Aliases: {gateway.matchKeywords}</span>
+                        )}
                         <button
                           onClick={() => handleEdit(gateway)}
                           className="text-sm font-medium text-indigo-600 hover:text-indigo-700"

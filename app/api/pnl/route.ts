@@ -17,7 +17,7 @@ export async function GET(req: Request) {
     const storeId = searchParams.get("storeId")
     const startDate = searchParams.get("startDate")
     const endDate = searchParams.get("endDate")
-    const groupBy = searchParams.get("groupBy") || "total" // total | day | month
+    const groupBy = searchParams.get("groupBy") || "total" // total | day | month | country
 
     // Build query filters
     const where: any = {}
@@ -115,6 +115,34 @@ export async function GET(req: Request) {
           month,
           ...metrics
         }))
+      }
+    } else if (groupBy === "country") {
+      const byCountry = new Map<string, { revenue: number; orderCount: number }>()
+
+      const ordersWithCountry = await prisma.order.findMany({
+        where,
+        select: {
+          customerCountry: true,
+          total: true,
+          refundAmount: true,
+        }
+      })
+
+      for (const order of ordersWithCountry) {
+        const country = (order.customerCountry || 'Unknown').trim() || 'Unknown'
+        const revenue = Number(order.total) - Number(order.refundAmount)
+        const existing = byCountry.get(country) || { revenue: 0, orderCount: 0 }
+        existing.revenue += revenue
+        existing.orderCount += 1
+        byCountry.set(country, existing)
+      }
+
+      result = {
+        groupBy: "country",
+        data: Array.from(byCountry.entries())
+          .map(([country, metrics]) => ({ country, ...metrics }))
+          .sort((a, b) => b.revenue - a.revenue)
+          .slice(0, 10)
       }
     } else {
       // Total aggregate

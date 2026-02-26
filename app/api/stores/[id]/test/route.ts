@@ -12,6 +12,8 @@ export async function POST(
 ) {
   try {
     const { id } = await params
+    const { searchParams } = new URL(req.url)
+    const debugUtm = ["1", "true", "yes"].includes((searchParams.get("debugUtm") || "").toLowerCase())
     const session = await getServerSession(authOptions)
     
     if (!session?.user?.id) {
@@ -33,8 +35,94 @@ export async function POST(
     let result: { success: boolean; message: string }
 
     if (store.platform === 'shopbase') {
-      const client = new ShopbaseClient(store.apiUrl, store.apiKey)
+      if (!store.apiSecret) {
+        return NextResponse.json(
+          { error: "API Password is required for ShopBase" },
+          { status: 400 }
+        )
+      }
+      const client = new ShopbaseClient(store.apiUrl, store.apiKey, store.apiSecret)
       result = await client.testConnection()
+
+      if (debugUtm && result.success) {
+        const parseUtmFromUrl = (urlValue: string | null | undefined) => {
+          if (!urlValue) return { source: null as string | null, medium: null as string | null, campaign: null as string | null }
+          try {
+            const normalizedUrl = urlValue.startsWith('http://') || urlValue.startsWith('https://')
+              ? urlValue
+              : `https://dummy.local${urlValue.startsWith('/') ? '' : '/'}${urlValue}`
+            const parsed = new URL(normalizedUrl)
+            return {
+              source: parsed.searchParams.get('utm_source'),
+              medium: parsed.searchParams.get('utm_medium'),
+              campaign: parsed.searchParams.get('utm_campaign'),
+            }
+          } catch {
+            return { source: null, medium: null, campaign: null }
+          }
+        }
+
+        const getAttr = (attrs: Array<{ name?: string; value?: string }> | undefined, keys: string[]) => {
+          if (!attrs?.length) return null
+          for (const a of attrs) {
+            const k = (a.name || '').toLowerCase()
+            if (keys.some((key) => k === key || k.includes(key))) {
+              const v = (a.value || '').trim()
+              if (v) return v
+            }
+          }
+          return null
+        }
+
+        const listOrders = await client.getOrders({
+          limit: 5,
+          page: 1,
+          orderStatus: 'any',
+          financialStatus: 'any',
+          fulfillmentStatus: 'any',
+        })
+
+        const samples = await Promise.all(
+          listOrders.map(async (o) => {
+            const detail = await client.getOrder(o.id).catch(() => null)
+            const source = detail || o
+            const parsed = parseUtmFromUrl(source.landing_site_ref || source.landing_site || source.referring_site)
+            const attrSource = getAttr(source.note_attributes, ['utm_source', 'source'])
+            const attrMedium = getAttr(source.note_attributes, ['utm_medium', 'medium'])
+            const attrCampaign = getAttr(source.note_attributes, ['utm_campaign', 'campaign'])
+
+            return {
+              orderId: source.id,
+              orderNumber: source.order_number,
+              payment: {
+                gateway: source.gateway || null,
+                paymentGatewayNames: source.payment_gateway_names || [],
+                sourceName: source.source_name || null,
+              },
+              rawAttribution: {
+                landingSiteRef: source.landing_site_ref || null,
+                landingSite: source.landing_site || null,
+                referringSite: source.referring_site || null,
+                noteAttributes: source.note_attributes || [],
+              },
+              extracted: {
+                utmSource: parsed.source || attrSource || source.source_name || null,
+                utmMedium: parsed.medium || attrMedium || null,
+                utmCampaign: parsed.campaign || attrCampaign || null,
+              }
+            }
+          })
+        )
+
+        return NextResponse.json({
+          success: true,
+          message: result.message,
+          debugUtm: {
+            sampleCount: samples.length,
+            samples,
+          }
+        })
+      }
     } else if (store.platform === 'woocommerce') {
       if (!store.apiSecret) {
         return NextResponse.json(

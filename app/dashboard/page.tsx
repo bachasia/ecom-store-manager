@@ -6,6 +6,7 @@ import KPICards from "@/components/dashboard/KPICards"
 import RevenueChart from "@/components/dashboard/RevenueChart"
 import ProfitBreakdownChart from "@/components/dashboard/ProfitBreakdownChart"
 import TopProducts from "@/components/dashboard/TopProducts"
+import RevenueByCountryChart from "@/components/dashboard/RevenueByCountryChart"
 import StoreSelect from "@/components/ui/store-select"
 
 interface Store {
@@ -26,7 +27,12 @@ export default function DashboardPage() {
   
   const [plData, setPlData] = useState<any>(null)
   const [chartData, setChartData] = useState<any[]>([])
+  const [countryData, setCountryData] = useState<any[]>([])
   const [topProducts, setTopProducts] = useState<any[]>([])
+  const [revenueChangePct, setRevenueChangePct] = useState<number | null>(null)
+  const [netProfitChangePct, setNetProfitChangePct] = useState<number | null>(null)
+  const [profitMarginChangePct, setProfitMarginChangePct] = useState<number | null>(null)
+  const [roasChangePct, setRoasChangePct] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -76,6 +82,46 @@ export default function DashboardPage() {
       const chartResponse = await fetch(`/api/pnl?${chartParams}`)
       const chartResult = await chartResponse.json()
       setChartData(chartResult.data || [])
+
+      const currentStart = new Date(dateRange.startDate)
+      const currentEnd = new Date(dateRange.endDate)
+      const dayMs = 24 * 60 * 60 * 1000
+      const periodDays = Math.max(1, Math.floor((currentEnd.getTime() - currentStart.getTime()) / dayMs) + 1)
+      const prevEnd = new Date(currentStart.getTime() - dayMs)
+      const prevStart = new Date(prevEnd.getTime() - (periodDays - 1) * dayMs)
+
+      const prevParams = new URLSearchParams({
+        ...(selectedStore && { storeId: selectedStore }),
+        startDate: prevStart.toISOString().split('T')[0],
+        endDate: prevEnd.toISOString().split('T')[0],
+        groupBy: 'total'
+      })
+      const prevResponse = await fetch(`/api/pnl?${prevParams}`)
+      const prevResult = await prevResponse.json()
+
+      const calcPct = (current: number, previous: number): number | null => {
+        if (!Number.isFinite(previous) || previous === 0) return null
+        return ((current - previous) / Math.abs(previous)) * 100
+      }
+
+      setRevenueChangePct(calcPct(Number(plResult?.revenue || 0), Number(prevResult?.revenue || 0)))
+      setNetProfitChangePct(calcPct(Number(plResult?.netProfit || 0), Number(prevResult?.netProfit || 0)))
+      setProfitMarginChangePct(calcPct(Number(plResult?.profitMargin || 0), Number(prevResult?.profitMargin || 0)))
+
+      const currentRoas = plResult?.roas === null || plResult?.roas === undefined ? null : Number(plResult.roas)
+      const prevRoas = prevResult?.roas === null || prevResult?.roas === undefined ? null : Number(prevResult.roas)
+      setRoasChangePct(currentRoas === null || prevRoas === null ? null : calcPct(currentRoas, prevRoas))
+
+      // Fetch revenue by country
+      const countryParams = new URLSearchParams({
+        ...(selectedStore && { storeId: selectedStore }),
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        groupBy: 'country'
+      })
+      const countryResponse = await fetch(`/api/pnl?${countryParams}`)
+      const countryResult = await countryResponse.json()
+      setCountryData(countryResult.data || [])
 
       // Fetch top products
       const productsParams = new URLSearchParams({
@@ -142,6 +188,13 @@ export default function DashboardPage() {
         netProfit={plData?.netProfit || 0}
         profitMargin={plData?.profitMargin || 0}
         roas={plData?.roas}
+        revenueTrend={chartData}
+        netProfitTrend={chartData}
+        profitMarginTrend={chartData}
+        revenueChangePct={revenueChangePct}
+        netProfitChangePct={netProfitChangePct}
+        profitMarginChangePct={profitMarginChangePct}
+        roasChangePct={roasChangePct}
         loading={loading}
       />
 
@@ -149,6 +202,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <RevenueChart data={chartData} loading={loading} />
         <ProfitBreakdownChart data={chartData} loading={loading} />
+        <RevenueByCountryChart data={countryData} loading={loading} />
       </div>
 
       {/* Top Products */}
