@@ -4,11 +4,25 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
+const toOptionalNumber = (min: number, max?: number) =>
+  z.preprocess((value) => {
+    if (value === '' || value === null || typeof value === 'undefined') return undefined
+    if (typeof value === 'string') {
+      const parsed = Number(value)
+      return Number.isFinite(parsed) ? parsed : value
+    }
+    return value
+  },
+  (max !== undefined
+    ? z.number().min(min).max(max)
+    : z.number().min(min)
+  ).optional())
+
 const updateGatewaySchema = z.object({
   displayName: z.string().min(1).optional(),
   matchKeywords: z.string().optional(),
-  feePercentage: z.number().min(0).max(100).optional(),
-  feeFixed: z.number().min(0).optional(),
+  feePercentage: toOptionalNumber(0, 100),
+  feeFixed: toOptionalNumber(0),
   isActive: z.boolean().optional(),
 })
 

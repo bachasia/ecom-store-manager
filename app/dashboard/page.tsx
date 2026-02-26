@@ -3,11 +3,14 @@
 import { useState, useEffect } from "react"
 import { useTranslations } from 'next-intl'
 import KPICards from "@/components/dashboard/KPICards"
-import RevenueChart from "@/components/dashboard/RevenueChart"
-import ProfitBreakdownChart from "@/components/dashboard/ProfitBreakdownChart"
 import TopProducts from "@/components/dashboard/TopProducts"
 import RevenueByCountryChart from "@/components/dashboard/RevenueByCountryChart"
+import RevenueProfitComboChart from "@/components/dashboard/RevenueProfitComboChart"
+import AdsRoasTrendChart from "@/components/dashboard/AdsRoasTrendChart"
+import StoreComparisonChart from "@/components/dashboard/StoreComparisonChart"
+import RevenueByUtmSourceChart from "@/components/dashboard/RevenueByUtmSourceChart"
 import StoreSelect from "@/components/ui/store-select"
+import DateRangeSelect, { type DatePreset } from "@/components/ui/date-range-select"
 
 interface Store {
   id: string
@@ -15,24 +18,76 @@ interface Store {
   platform: string
 }
 
+const toYMD = (date: Date) => {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+const getPresetRange = (preset: Exclude<DatePreset, 'custom'>) => {
+  const now = new Date()
+
+  if (preset === 'today') {
+    const today = toYMD(now)
+    return { startDate: today, endDate: today }
+  }
+
+  if (preset === 'yesterday') {
+    const d = new Date(now)
+    d.setDate(d.getDate() - 1)
+    const y = toYMD(d)
+    return { startDate: y, endDate: y }
+  }
+
+  if (preset === 'mtd') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1)
+    return { startDate: toYMD(start), endDate: toYMD(now) }
+  }
+
+  if (preset === 'last7') {
+    const start = new Date(now)
+    start.setDate(start.getDate() - 6)
+    return { startDate: toYMD(start), endDate: toYMD(now) }
+  }
+
+  if (preset === 'last30') {
+    const start = new Date(now)
+    start.setDate(start.getDate() - 29)
+    return { startDate: toYMD(start), endDate: toYMD(now) }
+  }
+
+  if (preset === 'lastMonth') {
+    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    const end = new Date(now.getFullYear(), now.getMonth(), 0)
+    return { startDate: toYMD(start), endDate: toYMD(end) }
+  }
+
+  const start = new Date(now.getFullYear() - 1, 0, 1)
+  const end = new Date(now.getFullYear() - 1, 11, 31)
+  return { startDate: toYMD(start), endDate: toYMD(end) }
+}
+
 export default function DashboardPage() {
   const t = useTranslations('dashboard')
   
   const [stores, setStores] = useState<Store[]>([])
   const [selectedStore, setSelectedStore] = useState<string>("")
-  const [dateRange, setDateRange] = useState({
-    startDate: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // Last 30 days
-    endDate: new Date().toISOString().split('T')[0]
-  })
+  const [datePreset, setDatePreset] = useState<DatePreset>('mtd')
+  const [dateRange, setDateRange] = useState(() => getPresetRange('mtd'))
   
   const [plData, setPlData] = useState<any>(null)
   const [chartData, setChartData] = useState<any[]>([])
+  const [storeComparisonData, setStoreComparisonData] = useState<any[]>([])
+  const [utmSourceData, setUtmSourceData] = useState<any[]>([])
   const [countryData, setCountryData] = useState<any[]>([])
   const [topProducts, setTopProducts] = useState<any[]>([])
   const [revenueChangePct, setRevenueChangePct] = useState<number | null>(null)
   const [netProfitChangePct, setNetProfitChangePct] = useState<number | null>(null)
   const [profitMarginChangePct, setProfitMarginChangePct] = useState<number | null>(null)
   const [roasChangePct, setRoasChangePct] = useState<number | null>(null)
+  const [itemsSoldChangePct, setItemsSoldChangePct] = useState<number | null>(null)
+  const [ordersChangePct, setOrdersChangePct] = useState<number | null>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -51,7 +106,6 @@ export default function DashboardPage() {
       const data = await response.json()
       if (response.ok && data.stores.length > 0) {
         setStores(data.stores)
-        setSelectedStore(data.stores[0].id)
       }
     } catch (error) {
       console.error("Error fetching stores:", error)
@@ -83,6 +137,27 @@ export default function DashboardPage() {
       const chartResult = await chartResponse.json()
       setChartData(chartResult.data || [])
 
+      // Fetch store comparison
+      const storeParams = new URLSearchParams({
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        groupBy: 'store'
+      })
+      const storeResponse = await fetch(`/api/pnl?${storeParams}`)
+      const storeResult = await storeResponse.json()
+      setStoreComparisonData(storeResult.data || [])
+
+      // Fetch revenue by UTM source
+      const utmParams = new URLSearchParams({
+        ...(selectedStore && { storeId: selectedStore }),
+        startDate: dateRange.startDate,
+        endDate: dateRange.endDate,
+        groupBy: 'utmSource'
+      })
+      const utmResponse = await fetch(`/api/pnl?${utmParams}`)
+      const utmResult = await utmResponse.json()
+      setUtmSourceData(utmResult.data || [])
+
       const currentStart = new Date(dateRange.startDate)
       const currentEnd = new Date(dateRange.endDate)
       const dayMs = 24 * 60 * 60 * 1000
@@ -107,6 +182,8 @@ export default function DashboardPage() {
       setRevenueChangePct(calcPct(Number(plResult?.revenue || 0), Number(prevResult?.revenue || 0)))
       setNetProfitChangePct(calcPct(Number(plResult?.netProfit || 0), Number(prevResult?.netProfit || 0)))
       setProfitMarginChangePct(calcPct(Number(plResult?.profitMargin || 0), Number(prevResult?.profitMargin || 0)))
+      setItemsSoldChangePct(calcPct(Number(plResult?.totalItemsSold || 0), Number(prevResult?.totalItemsSold || 0)))
+      setOrdersChangePct(calcPct(Number(plResult?.orderCount || 0), Number(prevResult?.orderCount || 0)))
 
       const currentRoas = plResult?.roas === null || plResult?.roas === undefined ? null : Number(plResult.roas)
       const prevRoas = prevResult?.roas === null || prevResult?.roas === undefined ? null : Number(prevResult.roas)
@@ -141,6 +218,13 @@ export default function DashboardPage() {
     }
   }
 
+  const handlePresetChange = (preset: DatePreset) => {
+    setDatePreset(preset)
+    if (preset !== 'custom') {
+      setDateRange(getPresetRange(preset))
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -164,20 +248,40 @@ export default function DashboardPage() {
             />
           )}
           
-          <div className="flex items-center space-x-2">
-            <input
-              type="date"
-              value={dateRange.startDate}
-              onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
-              className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-colors"
+          <div className="flex items-center gap-2">
+            <DateRangeSelect
+              value={datePreset}
+              onChange={handlePresetChange}
+              className="w-64"
+              options={[
+                { value: 'today', label: t('today') },
+                { value: 'yesterday', label: t('yesterday') },
+                { value: 'mtd', label: t('monthToDate') },
+                { value: 'last7', label: t('last7Days') },
+                { value: 'last30', label: t('last30Days') },
+                { value: 'lastMonth', label: t('lastMonth') },
+                { value: 'lastYear', label: t('lastYear') },
+                { value: 'custom', label: t('custom') },
+              ]}
             />
-            <span className="text-gray-500">-</span>
-            <input
-              type="date"
-              value={dateRange.endDate}
-              onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
-              className="rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-colors"
-            />
+
+            {datePreset === 'custom' && (
+              <div className="flex items-center space-x-2">
+                <input
+                  type="date"
+                  value={dateRange.startDate}
+                  onChange={(e) => setDateRange({ ...dateRange, startDate: e.target.value })}
+                  className="w-[150px] rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-colors"
+                />
+                <span className="text-gray-500">-</span>
+                <input
+                  type="date"
+                  value={dateRange.endDate}
+                  onChange={(e) => setDateRange({ ...dateRange, endDate: e.target.value })}
+                  className="w-[150px] rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-colors"
+                />
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -188,6 +292,12 @@ export default function DashboardPage() {
         netProfit={plData?.netProfit || 0}
         profitMargin={plData?.profitMargin || 0}
         roas={plData?.roas}
+        cogs={plData?.cogs || 0}
+        adsCosts={plData?.adsCosts || 0}
+        totalItemsSold={plData?.totalItemsSold || 0}
+        itemsPerOrder={plData?.itemsPerOrder || 0}
+        totalOrders={plData?.orderCount || 0}
+        aov={plData?.aov || 0}
         revenueTrend={chartData}
         netProfitTrend={chartData}
         profitMarginTrend={chartData}
@@ -195,18 +305,24 @@ export default function DashboardPage() {
         netProfitChangePct={netProfitChangePct}
         profitMarginChangePct={profitMarginChangePct}
         roasChangePct={roasChangePct}
+        itemsSoldChangePct={itemsSoldChangePct}
+        ordersChangePct={ordersChangePct}
         loading={loading}
       />
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <RevenueChart data={chartData} loading={loading} />
-        <ProfitBreakdownChart data={chartData} loading={loading} />
+        <RevenueProfitComboChart data={chartData} loading={loading} />
+        <AdsRoasTrendChart data={chartData} loading={loading} />
+        <StoreComparisonChart data={storeComparisonData} loading={loading} />
+        <RevenueByUtmSourceChart data={utmSourceData} loading={loading} />
         <RevenueByCountryChart data={countryData} loading={loading} />
       </div>
 
       {/* Top Products */}
-      <TopProducts products={topProducts} loading={loading} />
+      <div className="w-full lg:w-1/2">
+        <TopProducts products={topProducts} loading={loading} />
+      </div>
 
       {/* Getting Started Guide - Only show if no data */}
       {!loading && stores.length === 0 && (

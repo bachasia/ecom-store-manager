@@ -18,6 +18,7 @@ interface ProductVariant {
   price: number
   imageUrl: string | null
   isActive: boolean
+  hasSkuWarning: boolean
   _count: { orderItems: number }
 }
 
@@ -175,7 +176,7 @@ export default function ProductsPage() {
         ...(selectedPlatform && !selectedStore && { platform: selectedPlatform }),
         ...(search && { search }),
       })
-      const res = await fetch(`/api/products?${params}`, { signal: abortController.signal })
+      const res = await fetch(`/api/products?${params}`, { signal: abortController.signal, cache: "no-store" })
       const data = await res.json()
       if (res.ok) {
         setProducts(data.products)
@@ -367,7 +368,7 @@ export default function ProductsPage() {
                             )}
                           </td>
 
-                          {/* SKU */}
+                           {/* SKU */}
                           <td className="px-4 py-3">
                             <div className="space-y-0.5">
                               <span className="block text-xs font-mono text-gray-600">
@@ -376,6 +377,11 @@ export default function ProductsPage() {
                               {!hasVariants && group.store.platform === "shopbase" && group.variants[0]?.externalId && (
                                 <span className="block text-[11px] font-mono text-gray-400">
                                   variant_id: {group.variants[0].externalId}
+                                </span>
+                              )}
+                              {!hasVariants && group.variants[0]?.hasSkuWarning && (
+                                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200" title="SKU được sinh tự động — sản phẩm này không có SKU trên platform">
+                                  Auto SKU
                                 </span>
                               )}
                             </div>
@@ -467,6 +473,11 @@ export default function ProductsPage() {
                                   {group.store.platform === "shopbase" && (
                                     <span className="block text-[11px] font-mono text-gray-400">
                                       variant_id: {v.externalId}
+                                    </span>
+                                  )}
+                                  {v.hasSkuWarning && (
+                                    <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-50 text-amber-700 border border-amber-200" title="SKU được sinh tự động — variant này không có SKU trên platform">
+                                      Auto SKU
                                     </span>
                                   )}
                                 </div>

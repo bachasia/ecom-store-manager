@@ -4,6 +4,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { prisma } from "@/lib/prisma"
 import { ShopbaseClient } from "@/lib/integrations/shopbase"
 import { WooCommerceClient } from "@/lib/integrations/woocommerce"
+import { WcPluginClient, PluginProduct } from "@/lib/integrations/wc-plugin"
 
 class CancelledError extends Error {
   constructor() { super('Cancelled by user'); this.name = 'CancelledError' }
@@ -24,7 +25,7 @@ export async function POST(
 
     const store = await prisma.store.findFirst({
       where: { id: storeId, userId: session.user.id }
-    })
+    }) as any  // cast to any — pluginSecret field exists at runtime
 
     if (!store) {
       return NextResponse.json({ error: "Store not found" }, { status: 404 })
@@ -120,6 +121,7 @@ export async function POST(
         variantName: string | null
         price: number
         imageUrl?: string | null
+        hasSkuWarning?: boolean  // true nếu SKU được sinh tự động
       }) => {
         seenExternalIds.add(data.externalId)
 
@@ -133,6 +135,8 @@ export async function POST(
           }
         })
 
+        const hasSkuWarning = data.hasSkuWarning ?? false
+
         if (existing) {
           const priceChanged = parseFloat(existing.price.toString()) !== data.price
           const nameChanged = existing.name !== data.name
@@ -140,8 +144,9 @@ export async function POST(
           const imageChanged = (existing.imageUrl ?? null) !== (data.imageUrl ?? null)
           const parentChanged = (existing.parentExternalId ?? null) !== (data.parentExternalId ?? null)
           const wasInactive = !existing.isActive
+          const warningChanged = existing.hasSkuWarning !== hasSkuWarning
 
-          if (priceChanged || nameChanged || variantChanged || imageChanged || parentChanged || wasInactive) {
+          if (priceChanged || nameChanged || variantChanged || imageChanged || parentChanged || wasInactive || warningChanged) {
             await prisma.product.update({
               where: { id: existing.id },
               data: {
@@ -151,6 +156,7 @@ export async function POST(
                 price: data.price,
                 imageUrl: data.imageUrl ?? null,
                 isActive: true,
+                hasSkuWarning,
               },
             })
             productsUpdated++
@@ -169,6 +175,7 @@ export async function POST(
               price: data.price,
               imageUrl: data.imageUrl ?? null,
               isActive: true,
+              hasSkuWarning,
             }
           })
           productsCreated++
@@ -214,16 +221,30 @@ export async function POST(
 
       // ─── WooCommerce ─────────────────────────────────────────────────────
       } else if (store.platform === 'woocommerce') {
-        if (!store.apiSecret) throw new Error('API Secret is required for WooCommerce')
 
-        const client = new WooCommerceClient(store.apiUrl, store.apiKey, store.apiSecret)
+        // Dùng syncLog riêng cho products — không bị ảnh hưởng bởi order sync
+        const lastProductSyncLog = await prisma.syncLog.findFirst({
+          where: {
+            storeId: store.id,
+            syncType: 'products',
+            status: 'success',
+            completedAt: { not: null },
+          },
+          orderBy: { completedAt: 'desc' },
+          select: { completedAt: true }
+        })
 
-        // Incremental: chỉ fetch products thay đổi kể từ lần sync trước
-        // Full sync nếu chưa có lastSyncAt
-        const isIncremental = !!store.lastSyncAt
+        const existingProductCount = await prisma.product.count({ where: { storeId: store.id } })
+        const forceFull = ["1", "true", "yes"].includes(
+          (new URL(req.url).searchParams.get("full") || "").toLowerCase()
+        )
+
+        const isIncremental = !forceFull && existingProductCount > 0 && !!lastProductSyncLog?.completedAt
         const modifiedAfter = isIncremental
-          ? store.lastSyncAt!.toISOString()
+          ? lastProductSyncLog!.completedAt!.toISOString()
           : undefined
+
+        const syncStartTime = Date.now()
 
         if (isIncremental) {
           console.info(`[sync:products] WooCommerce incremental sync — modified_after=${modifiedAfter}`)
@@ -231,64 +252,129 @@ export async function POST(
           console.info('[sync:products] WooCommerce full sync')
         }
 
-        const products = await client.getAllProducts({ modifiedAfter })
-
-        for (const product of products) {
+        // ── Helper: upsert product từ plugin format (đã có inline variations) ──
+        const upsertFromPlugin = async (product: PluginProduct) => {
           if (await isCancelled()) throw new CancelledError()
-
-          const productImageUrl = product.images?.[0]?.src ?? null
+          const productImageUrl = product.image_url ?? null
 
           if (product.type === 'simple') {
-            if (!product.sku?.trim()) {
-              const warning = `Simple product id=${product.id} "${product.name}" has no SKU — skipped`
-              console.warn('[sync:products]', warning)
-              skuWarnings.push(`"${product.name}" (id=${product.id})`)
-              continue
-            }
-
-            await upsertProduct({
-              externalId: product.id.toString(),
-              parentExternalId: null,  // simple product — không có parent
-              sku: product.sku.trim(),
-              name: product.name,
-              variantName: null,
-              price: parseFloat(product.price) || 0,
-              imageUrl: productImageUrl,
-            })
+            const hasOriginalSku = !!product.sku?.trim()
+            const sku = hasOriginalSku ? product.sku.trim() : `wc-${product.id}`
+            if (!hasOriginalSku) skuWarnings.push(`"${product.name}" (id=${product.id}) → ${sku}`)
+            await upsertProduct({ externalId: product.id.toString(), parentExternalId: null, sku, name: product.name, variantName: null, price: parseFloat(product.price) || 0, imageUrl: productImageUrl, hasSkuWarning: !hasOriginalSku })
 
           } else if (product.type === 'variable') {
-            if (!product.variations || product.variations.length === 0) continue
-
-            const variations = await client.getProductVariations(product.id)
-
-            for (const variation of variations) {
-              if (!variation.sku?.trim()) {
-                const warning = `Variation id=${variation.id} of "${product.name}" has no SKU — skipped`
-                console.warn('[sync:products]', warning)
-                skuWarnings.push(`"${product.name}" variation id=${variation.id}`)
-                continue
-              }
-
-              const variantName = variation.attributes.length > 0
-                ? variation.attributes.map(a => a.option).join(' / ')
-                : null
-
-              // Ảnh variation riêng → fallback về ảnh product
-              const imageUrl = variation.image?.src ?? productImageUrl
-
-              await upsertProduct({
-                externalId: variation.id.toString(),
-                parentExternalId: product.id.toString(),
-                sku: variation.sku.trim(),
-                name: product.name,
-                variantName,
-                price: parseFloat(variation.price) || 0,
-                imageUrl,
-              })
+            for (const variation of product.variations) {
+              const hasOriginalSku = !!variation.sku?.trim()
+              const sku = hasOriginalSku ? variation.sku.trim() : `wc-var-${variation.id}`
+              if (!hasOriginalSku) skuWarnings.push(`"${product.name}" variation id=${variation.id} → ${sku}`)
+              const variantName = variation.attributes.length > 0 ? variation.attributes.map(a => a.option).join(' / ') : null
+              await upsertProduct({ externalId: variation.id.toString(), parentExternalId: product.id.toString(), sku, name: product.name, variantName, price: parseFloat(variation.price) || 0, imageUrl: variation.image_url ?? productImageUrl, hasSkuWarning: !hasOriginalSku })
             }
           }
-          // grouped, external: bỏ qua
         }
+
+        if (store.pluginSecret) {
+          // ── Plugin fast path: bulk export, 1 request per page, inline variations ──
+          console.info('[sync:products] Using PNL Sync Plugin — fast path')
+          const pluginClient = new WcPluginClient(store.apiUrl, store.pluginSecret)
+
+          await pluginClient.streamProducts({
+            modifiedAfter,
+            perPage: 100,  // 100 products/page — balance giữa số request và timeout risk
+            onPage: async (products, pageInfo) => {
+              const dbWritten = productsCreated + productsUpdated + productsSkipped
+              console.info(`[sync:products][plugin] page=${pageInfo.page}/${pageInfo.totalPages} products=${products.length} db_written=${dbWritten}`)
+              for (const product of products) {
+                await upsertFromPlugin(product)
+              }
+            },
+            onProgress: (fetched, total) => {
+              console.info(`[sync:products][plugin] fetched=${fetched}/${total}`)
+            },
+          })
+
+        } else {
+          // ── WooCommerce REST API fallback ────────────────────────────────────
+          if (!store.apiSecret) throw new Error('API Secret is required for WooCommerce')
+          console.info('[sync:products] Using WooCommerce REST API (install PNL Plugin for faster sync)')
+          const client = new WooCommerceClient(store.apiUrl, store.apiKey, store.apiSecret)
+
+          const { simpleCount, variableCount, errorCount: fetchErrors } = await client.streamAllProducts({
+          modifiedAfter,
+          variationConcurrency: 3,
+          onProgress: ({ pagesFetched, simpleProcessed, variableProcessed, variableTotal }) => {
+            const dbWritten = productsCreated + productsUpdated + productsSkipped
+            console.info(
+              `[sync:products] pages=${pagesFetched} ` +
+              `simple=${simpleProcessed} variable=${variableProcessed}/${variableTotal} ` +
+              `db_written=${dbWritten}`
+            )
+          },
+          onProduct: async (product, variations) => {
+            if (await isCancelled()) throw new CancelledError()
+
+            const productImageUrl = product.images?.[0]?.src ?? null
+
+            if (product.type === 'simple') {
+              const hasOriginalSku = !!product.sku?.trim()
+              const sku = hasOriginalSku ? product.sku!.trim() : `wc-${product.id}`
+
+              if (!hasOriginalSku) {
+                console.warn(`[sync:products] No SKU: "${product.name}" (id=${product.id}) → auto: ${sku}`)
+                skuWarnings.push(`"${product.name}" (id=${product.id}) → ${sku}`)
+              }
+
+              await upsertProduct({
+                externalId: product.id.toString(),
+                parentExternalId: null,
+                sku,
+                name: product.name,
+                variantName: null,
+                price: parseFloat(product.price) || 0,
+                imageUrl: productImageUrl,
+                hasSkuWarning: !hasOriginalSku,
+              })
+
+            } else if (product.type === 'variable') {
+              if (variations.length === 0 && (!product.variations || product.variations.length === 0)) return
+
+              for (const variation of variations) {
+                const hasOriginalSku = !!variation.sku?.trim()
+                const sku = hasOriginalSku ? variation.sku!.trim() : `wc-var-${variation.id}`
+
+                if (!hasOriginalSku) {
+                  console.warn(`[sync:products] No SKU: "${product.name}" variation id=${variation.id} → auto: ${sku}`)
+                  skuWarnings.push(`"${product.name}" variation id=${variation.id} → ${sku}`)
+                }
+
+                const variantName = variation.attributes.length > 0
+                  ? variation.attributes.map(a => a.option).join(' / ')
+                  : null
+
+                const imageUrl = variation.image?.src ?? productImageUrl
+
+                await upsertProduct({
+                  externalId: variation.id.toString(),
+                  parentExternalId: product.id.toString(),
+                  sku,
+                  name: product.name,
+                  variantName,
+                  price: parseFloat(variation.price) || 0,
+                  imageUrl,
+                  hasSkuWarning: !hasOriginalSku,
+                })
+              }
+            }
+            // grouped, external: bỏ qua
+          },
+        })
+
+          console.info(
+            `[sync:products] Stream done in ${((Date.now() - syncStartTime) / 1000).toFixed(1)}s — ` +
+            `simple=${simpleCount} variable=${variableCount} fetchErrors=${fetchErrors}`
+          )
+        } // end REST API else
 
         // Incremental sync không fetch full list nên không thể biết product nào bị xóa
         if (isIncremental) skipDeactivate = true
@@ -343,7 +429,7 @@ export async function POST(
       if (productsUpdated > 0) parts.push(`${productsUpdated} cập nhật`)
       if (productsSkipped > 0) parts.push(`${productsSkipped} không thay đổi`)
       if (productsDeactivated > 0) parts.push(`${productsDeactivated} đã ẩn`)
-      if (skuWarnings.length > 0) parts.push(`${skuWarnings.length} bỏ qua (không có SKU)`)
+      if (skuWarnings.length > 0) parts.push(`${skuWarnings.length} sinh SKU tự động (thiếu SKU gốc)`)
 
       return NextResponse.json({
         success: true,
@@ -354,18 +440,20 @@ export async function POST(
           updated: productsUpdated,
           skipped: productsSkipped,
           deactivated: productsDeactivated,
-          skuWarnings: skuWarnings.length,
+          autoSkuCount: skuWarnings.length,
           syncMode,
-          ...(skuWarnings.length > 0 && { skuWarningDetails: skuWarnings })
+          ...(skuWarnings.length > 0 && { autoSkuDetails: skuWarnings })
         }
       })
 
     } catch (error: any) {
       if (error instanceof CancelledError) {
-        await prisma.syncLog.update({
-          where: { id: syncLog.id },
-          data: { status: 'cancelled', errorMessage: 'Cancelled by user', completedAt: new Date() }
-        })
+        if (syncLog) {
+          await prisma.syncLog.update({
+            where: { id: syncLog.id },
+            data: { status: 'cancelled', errorMessage: 'Cancelled by user', completedAt: new Date() }
+          })
+        }
         await prisma.store.update({
           where: { id: store.id },
           data: { lastSyncStatus: 'cancelled', lastSyncError: 'Cancelled by user' }
@@ -374,10 +462,12 @@ export async function POST(
       }
 
       console.error("Product sync error:", error)
-      await prisma.syncLog.update({
-        where: { id: syncLog.id },
-        data: { status: 'error', errorMessage: error.message, completedAt: new Date() }
-      })
+      if (syncLog) {
+        await prisma.syncLog.update({
+          where: { id: syncLog.id },
+          data: { status: 'error', errorMessage: error.message, completedAt: new Date() }
+        })
+      }
       await prisma.store.update({
         where: { id: store.id },
         data: { lastSyncStatus: 'error', lastSyncError: error.message }

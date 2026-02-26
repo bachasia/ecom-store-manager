@@ -61,7 +61,8 @@ model Store {
   platform    String   // 'shopbase' | 'woocommerce'
   apiUrl      String   // Store URL
   apiKey      String   // Encrypted
-  apiSecret   String?  // Encrypted (for WooCommerce)
+  apiSecret     String?  // Encrypted (for WooCommerce)
+  pluginSecret  String?  // Encrypted — shared secret with PNL Sync WordPress plugin
   isActive    Boolean  @default(true)
   currency    String   @default("USD")
   timezone    String   @default("UTC")
@@ -96,6 +97,7 @@ model Product {
   price           Decimal  @db.Decimal(10, 2)
   imageUrl        String?  // Product image from platform
   isActive        Boolean  @default(true)
+  hasSkuWarning   Boolean  @default(false) // true nếu SKU được sinh tự động (không có SKU gốc từ platform)
   
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
@@ -198,8 +200,8 @@ model AdsCost {
   date          DateTime @db.Date
   platform      String   // 'facebook' | 'google' | 'manual'
   
-  campaignName  String?
-  adsetName     String?
+  campaignName  String   @default("")
+  adsetName     String   @default("")
   
   spend         Decimal  @db.Decimal(10, 2)
   impressions   Int?

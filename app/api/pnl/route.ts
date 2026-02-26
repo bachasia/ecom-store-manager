@@ -17,10 +17,12 @@ export async function GET(req: Request) {
     const storeId = searchParams.get("storeId")
     const startDate = searchParams.get("startDate")
     const endDate = searchParams.get("endDate")
-    const groupBy = searchParams.get("groupBy") || "total" // total | day | month | country
+    const groupBy = searchParams.get("groupBy") || "total" // total | day | month | country | store | utmSource
 
     // Build query filters
     const where: any = {}
+
+    let accessibleStores: Array<{ id: string; name: string }> = []
 
     if (storeId) {
       // Verify store belongs to user
@@ -28,7 +30,11 @@ export async function GET(req: Request) {
         where: {
           id: storeId,
           userId: session.user.id
-        }
+        },
+        select: {
+          id: true,
+          name: true,
+        },
       })
 
       if (!store) {
@@ -36,32 +42,40 @@ export async function GET(req: Request) {
       }
 
       where.storeId = storeId
+      accessibleStores = [{ id: store.id, name: store.name }]
     } else {
       // Get all user's stores
       const userStores = await prisma.store.findMany({
         where: { userId: session.user.id },
-        select: { id: true }
+        select: {
+          id: true,
+          name: true,
+        },
       })
 
       where.storeId = {
         in: userStores.map(s => s.id)
       }
+
+      accessibleStores = userStores
     }
 
-    // Date filters
+    // Date filters (inclusive by calendar day)
     if (startDate || endDate) {
       where.orderDate = {}
       if (startDate) {
-        where.orderDate.gte = new Date(startDate)
+        where.orderDate.gte = new Date(`${startDate}T00:00:00.000Z`)
       }
       if (endDate) {
-        where.orderDate.lte = new Date(endDate)
+        const endExclusive = new Date(`${endDate}T00:00:00.000Z`)
+        endExclusive.setUTCDate(endExclusive.getUTCDate() + 1)
+        where.orderDate.lt = endExclusive
       }
     }
 
     // Only include completed orders
     where.status = {
-      in: ['completed', 'processing', 'paid']
+      in: ['completed', 'processing', 'paid', 'authorized']
     }
 
     // Fetch orders with necessary data
@@ -69,6 +83,7 @@ export async function GET(req: Request) {
       where,
       select: {
         id: true,
+        storeId: true,
         orderDate: true,
         total: true,
         refundAmount: true,
@@ -78,15 +93,32 @@ export async function GET(req: Request) {
         grossProfit: true,
         netProfit: true,
         profitMargin: true,
+        utmSource: true,
       },
       orderBy: {
         orderDate: 'asc'
       }
     })
 
+    const orderIds = orders.map((o) => o.id)
+    const orderItems = orderIds.length > 0
+      ? await prisma.orderItem.findMany({
+          where: { orderId: { in: orderIds } },
+          select: { orderId: true, quantity: true }
+        })
+      : []
+
+    const itemsByOrderId = new Map<string, number>()
+    for (const item of orderItems) {
+      itemsByOrderId.set(item.orderId, (itemsByOrderId.get(item.orderId) || 0) + item.quantity)
+    }
+
+    const totalItemsSold = Array.from(itemsByOrderId.values()).reduce((sum, qty) => sum + qty, 0)
+
     // Convert Decimal to number for calculations
     const ordersForCalc = orders.map(order => ({
       id: order.id,
+      storeId: order.storeId,
       orderDate: order.orderDate,
       total: Number(order.total),
       refundAmount: Number(order.refundAmount),
@@ -100,11 +132,24 @@ export async function GET(req: Request) {
 
     if (groupBy === "day") {
       const plByDate = calculatePLByDate(ordersForCalc)
+      const itemsByDate = new Map<string, number>()
+
+      for (const order of orders) {
+        const date = order.orderDate.toISOString().split('T')[0]
+        const qty = itemsByOrderId.get(order.id) || 0
+        itemsByDate.set(date, (itemsByDate.get(date) || 0) + qty)
+      }
+
       result = {
         groupBy: "day",
         data: Array.from(plByDate.entries()).map(([date, metrics]) => ({
           date,
-          ...metrics
+          ...metrics,
+          itemsSold: itemsByDate.get(date) || 0,
+          ordersCount: orders.filter((o) => o.orderDate.toISOString().split('T')[0] === date).length,
+          aov: orders.filter((o) => o.orderDate.toISOString().split('T')[0] === date).length > 0
+            ? metrics.revenue / orders.filter((o) => o.orderDate.toISOString().split('T')[0] === date).length
+            : 0,
         }))
       }
     } else if (groupBy === "month") {
@@ -144,12 +189,59 @@ export async function GET(req: Request) {
           .sort((a, b) => b.revenue - a.revenue)
           .slice(0, 10)
       }
+    } else if (groupBy === "store") {
+      const byStore = new Map<string, typeof ordersForCalc>()
+
+      for (const order of ordersForCalc) {
+        const bucket = byStore.get(order.storeId) || []
+        bucket.push(order)
+        byStore.set(order.storeId, bucket)
+      }
+
+      const storeNameById = new Map(accessibleStores.map((store) => [store.id, store.name]))
+
+      result = {
+        groupBy: "store",
+        data: Array.from(byStore.entries())
+          .map(([id, storeOrders]) => {
+            const metrics = calculateAggregatePL(storeOrders)
+            return {
+              storeId: id,
+              storeName: storeNameById.get(id) || "Unknown",
+              orderCount: storeOrders.length,
+              ...metrics,
+            }
+          })
+          .sort((a, b) => b.revenue - a.revenue)
+      }
+    } else if (groupBy === "utmSource") {
+      const byUtmSource = new Map<string, { revenue: number; orderCount: number }>()
+
+      for (const order of orders) {
+        const source = (order.utmSource || "Unknown").trim() || "Unknown"
+        const revenue = Number(order.total) - Number(order.refundAmount)
+        const existing = byUtmSource.get(source) || { revenue: 0, orderCount: 0 }
+        existing.revenue += revenue
+        existing.orderCount += 1
+        byUtmSource.set(source, existing)
+      }
+
+      result = {
+        groupBy: "utmSource",
+        data: Array.from(byUtmSource.entries())
+          .map(([utmSource, metrics]) => ({ utmSource, ...metrics }))
+          .sort((a, b) => b.revenue - a.revenue)
+          .slice(0, 10)
+      }
     } else {
       // Total aggregate
       const metrics = calculateAggregatePL(ordersForCalc)
       result = {
         groupBy: "total",
         orderCount: orders.length,
+        totalItemsSold,
+        itemsPerOrder: orders.length > 0 ? totalItemsSold / orders.length : 0,
+        aov: orders.length > 0 ? metrics.revenue / orders.length : 0,
         ...metrics
       }
     }

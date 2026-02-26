@@ -12,6 +12,7 @@ const storeSchema = z.object({
   apiUrl: z.string().url("Invalid URL"),
   apiKey: z.string().min(1, "API Key is required"),
   apiSecret: z.string().optional(),
+  pluginSecret: z.string().optional(),
   currency: z.string().default("USD"),
   timezone: z.string().default("UTC"),
 }).refine(
@@ -48,7 +49,7 @@ export async function GET() {
         lastSyncError: true,
         createdAt: true,
         updatedAt: true,
-        // Don't return encrypted credentials
+        pluginSecret: true,  // used to compute hasPlugin — not returned to client
         _count: {
           select: {
             products: true,
@@ -107,14 +108,18 @@ export async function GET() {
       }
     }
 
-    const storesWithParentProductCount = stores.map((store) => ({
-      ...store,
-      lastSyncStatus:
-        (store.lastSyncStatus === 'in_progress' || store.lastSyncStatus === 'cancelling') && !runningSyncStoreIds.has(store.id)
-          ? null
-          : store.lastSyncStatus,
-      productCount: parentProductCountByStore.get(store.id) ?? 0,
-    }))
+    const storesWithParentProductCount = stores.map((store) => {
+      const { pluginSecret, ...storeWithoutSecret } = store as any
+      return {
+        ...storeWithoutSecret,
+        lastSyncStatus:
+          (store.lastSyncStatus === 'in_progress' || store.lastSyncStatus === 'cancelling') && !runningSyncStoreIds.has(store.id)
+            ? null
+            : store.lastSyncStatus,
+        productCount: parentProductCountByStore.get(store.id) ?? 0,
+        hasPlugin: !!pluginSecret,
+      }
+    })
 
     return NextResponse.json({ stores: storesWithParentProductCount })
   } catch (error) {
@@ -138,10 +143,18 @@ export async function POST(req: Request) {
     const body = await req.json()
     const validatedData = storeSchema.parse(body)
 
+    const tzSetting = await prisma.appSetting.findUnique({
+      where: { key: `default_timezone:${session.user.id}` }
+    })
+    const effectiveTimezone = tzSetting?.value || validatedData.timezone || "UTC"
+
     // Encrypt API credentials
     const encryptedApiKey = encrypt(validatedData.apiKey)
-    const encryptedApiSecret = validatedData.apiSecret 
-      ? encrypt(validatedData.apiSecret) 
+    const encryptedApiSecret = validatedData.apiSecret
+      ? encrypt(validatedData.apiSecret)
+      : null
+    const encryptedPluginSecret = validatedData.pluginSecret?.trim()
+      ? encrypt(validatedData.pluginSecret.trim())
       : null
 
     const store = await prisma.store.create({
@@ -152,8 +165,9 @@ export async function POST(req: Request) {
         apiUrl: validatedData.apiUrl,
         apiKey: encryptedApiKey,
         apiSecret: encryptedApiSecret,
+        pluginSecret: encryptedPluginSecret,
         currency: validatedData.currency,
-        timezone: validatedData.timezone,
+        timezone: effectiveTimezone,
       },
       select: {
         id: true,

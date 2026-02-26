@@ -17,6 +17,7 @@ interface Store {
   lastSyncError?: string | null
   createdAt: string
   productCount?: number
+  hasPlugin?: boolean
   _count?: {
     products: number
     orders: number
@@ -592,13 +593,23 @@ export default function StoresPage() {
                         />
                         <span>{store.name}</span>
                       </h3>
-                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium ${
-                        store.platform === "shopbase"
-                          ? "bg-blue-50 text-blue-700 border border-blue-100"
-                          : "bg-purple-50 text-purple-700 border border-purple-100"
-                      }`}>
-                        {store.platform}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium ${
+                          store.platform === "shopbase"
+                            ? "bg-blue-50 text-blue-700 border border-blue-100"
+                            : "bg-purple-50 text-purple-700 border border-purple-100"
+                        }`}>
+                          {store.platform}
+                        </span>
+                        {store.hasPlugin && (
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200" title={t("pluginConnected")}>
+                            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                            </svg>
+                            {t("pluginBadge")}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   {store.isActive ? (
@@ -696,7 +707,14 @@ export default function StoresPage() {
                         <span>{t("syncing")}</span>
                       </>
                     ) : (
-                      t("syncProducts")
+                      <span className="flex items-center gap-1">
+                        {t("syncProducts")}
+                        {store.hasPlugin && (
+                          <svg className="w-3 h-3 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                        )}
+                      </span>
                     )}
                   </button>
 
@@ -726,7 +744,14 @@ export default function StoresPage() {
                         <span>{t("syncing")}</span>
                       </>
                     ) : (
-                      t("syncOrders")
+                      <span className="flex items-center gap-1">
+                        {t("syncOrders")}
+                        {store.hasPlugin && (
+                          <svg className="w-3 h-3 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                          </svg>
+                        )}
+                      </span>
                     )}
                   </button>
 
@@ -784,11 +809,12 @@ type StoreFormMode = "create" | "edit"
 interface StoreFormModalProps {
   mode: StoreFormMode
   store?: Store
+  storeId?: string  // needed for webhook URL
   onClose: () => void
   onSuccess: () => void
 }
 
-function StoreFormModal({ mode, store, onClose, onSuccess }: StoreFormModalProps) {
+function StoreFormModal({ mode, store, storeId, onClose, onSuccess }: StoreFormModalProps) {
   const t = useTranslations("stores")
   const tCommon = useTranslations("common")
   const isEdit = mode === "edit"
@@ -799,11 +825,45 @@ function StoreFormModal({ mode, store, onClose, onSuccess }: StoreFormModalProps
     apiUrl: store?.apiUrl || "",
     apiKey: "",
     apiSecret: "",
+    pluginSecret: "",
     currency: store?.currency || "USD",
     timezone: store?.timezone || "UTC",
   })
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [testingPlugin, setTestingPlugin] = useState(false)
+  const [pluginTestResult, setPluginTestResult] = useState<{ success: boolean; message: string } | null>(null)
+  const [webhookCopied, setWebhookCopied] = useState(false)
+
+  const webhookUrl = typeof window !== 'undefined' && storeId
+    ? `${window.location.origin}/api/webhooks/wc-plugin/${storeId}`
+    : storeId ? `/api/webhooks/wc-plugin/${storeId}` : ''
+
+  const handleTestPlugin = async () => {
+    if (!storeId) return
+    setTestingPlugin(true)
+    setPluginTestResult(null)
+    try {
+      const res = await fetch(`/api/stores/${storeId}/test?plugin=1`, { method: "POST" })
+      const data = await res.json()
+      setPluginTestResult({ success: data.success, message: data.message })
+    } catch {
+      setPluginTestResult({ success: false, message: t("connectionError") })
+    } finally {
+      setTestingPlugin(false)
+    }
+  }
+
+  const handleCopyWebhook = async () => {
+    if (!webhookUrl) return
+    try {
+      await navigator.clipboard.writeText(webhookUrl)
+      setWebhookCopied(true)
+      setTimeout(() => setWebhookCopied(false), 2000)
+    } catch {
+      // fallback: select text
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -827,6 +887,10 @@ function StoreFormModal({ mode, store, onClose, onSuccess }: StoreFormModalProps
 
       if (formData.apiKey.trim()) payload.apiKey = formData.apiKey.trim()
       if (formData.apiSecret.trim()) payload.apiSecret = formData.apiSecret.trim()
+      // Send pluginSecret even if empty (empty = remove)
+      if (isEdit || formData.pluginSecret.trim()) {
+        payload.pluginSecret = formData.pluginSecret.trim()
+      }
 
       const response = await fetch(
         isEdit ? `/api/stores/${store?.id}` : "/api/stores",
@@ -948,6 +1012,91 @@ function StoreFormModal({ mode, store, onClose, onSuccess }: StoreFormModalProps
             </div>
           )}
 
+          {/* PNL Plugin Section — WooCommerce only */}
+          {formData.platform === "woocommerce" && (
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50/50 p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                  </svg>
+                  <span className="text-sm font-semibold text-emerald-800">{t("pluginSection")}</span>
+                </div>
+                <a
+                  href="/downloads/pnl-sync.zip"
+                  download
+                  className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 hover:text-emerald-900 bg-white border border-emerald-200 rounded-lg px-2.5 py-1 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                  </svg>
+                  {t("downloadPlugin")}
+                </a>
+              </div>
+
+              <p className="text-xs text-emerald-700">{t("pluginDesc")}</p>
+
+              {/* Plugin Secret input */}
+              <div className="space-y-1.5">
+                <label className="block text-xs font-semibold text-gray-700">{t("pluginSecret")}</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={formData.pluginSecret}
+                    onChange={(e) => { setFormData({ ...formData, pluginSecret: e.target.value }); setPluginTestResult(null) }}
+                    className="flex-1 rounded-lg border border-gray-200 px-3 py-2 text-gray-900 placeholder-gray-400 focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20 transition-colors font-mono text-xs"
+                    placeholder={t("pluginSecretPlaceholder")}
+                  />
+                  {isEdit && storeId && (
+                    <button
+                      type="button"
+                      onClick={handleTestPlugin}
+                      disabled={testingPlugin}
+                      className="px-3 py-2 rounded-lg text-xs font-semibold border bg-white border-emerald-300 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 transition-colors whitespace-nowrap"
+                    >
+                      {testingPlugin ? t("testingPlugin") : t("testPlugin")}
+                    </button>
+                  )}
+                </div>
+                <p className="text-[11px] text-gray-500">{t("pluginSecretHint")}</p>
+
+                {/* Plugin test result */}
+                {pluginTestResult && (
+                  <div className={`flex items-center gap-2 text-xs px-3 py-2 rounded-lg border ${pluginTestResult.success ? 'bg-green-50 border-green-200 text-green-700' : 'bg-red-50 border-red-200 text-red-700'}`}>
+                    {pluginTestResult.success
+                      ? <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" /></svg>
+                      : <svg className="w-3.5 h-3.5 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                    }
+                    <span>{pluginTestResult.message}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Webhook URL — only show if editing existing store */}
+              {isEdit && storeId && (
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-semibold text-gray-700">{t("webhookUrl")}</label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      readOnly
+                      value={webhookUrl}
+                      className="flex-1 rounded-lg border border-gray-200 px-3 py-2 bg-gray-50 text-gray-600 font-mono text-xs cursor-text select-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleCopyWebhook}
+                      className="px-3 py-2 rounded-lg text-xs font-semibold border bg-white border-gray-300 text-gray-700 hover:bg-gray-50 transition-colors whitespace-nowrap"
+                    >
+                      {webhookCopied ? t("copied") : t("copyUrl")}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-gray-500">{t("webhookUrlHint")}</p>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex items-center space-x-3 pt-4">
             <button
               type="button"
@@ -974,7 +1123,7 @@ function StoreFormModal({ mode, store, onClose, onSuccess }: StoreFormModalProps
 }
 
 function EditStoreForm({ store, onClose, onSuccess }: { store: Store; onClose: () => void; onSuccess: () => void }) {
-  return <StoreFormModal mode="edit" store={store} onClose={onClose} onSuccess={onSuccess} />
+  return <StoreFormModal mode="edit" store={store} storeId={store.id} onClose={onClose} onSuccess={onSuccess} />
 }
 
 function AddStoreForm({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {

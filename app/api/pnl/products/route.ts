@@ -52,20 +52,22 @@ export async function GET(req: Request) {
       }
     }
 
-    // Date filters
+    // Date filters (inclusive by calendar day)
     if (startDate || endDate) {
       where.order.orderDate = {}
       if (startDate) {
-        where.order.orderDate.gte = new Date(startDate)
+        where.order.orderDate.gte = new Date(`${startDate}T00:00:00.000Z`)
       }
       if (endDate) {
-        where.order.orderDate.lte = new Date(endDate)
+        const endExclusive = new Date(`${endDate}T00:00:00.000Z`)
+        endExclusive.setUTCDate(endExclusive.getUTCDate() + 1)
+        where.order.orderDate.lt = endExclusive
       }
     }
 
     // Only include completed orders
     where.order.status = {
-      in: ['completed', 'processing', 'paid']
+      in: ['completed', 'processing', 'paid', 'authorized']
     }
 
     // Fetch order items with order data

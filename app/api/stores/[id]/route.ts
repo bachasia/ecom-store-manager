@@ -11,6 +11,7 @@ const updateStoreSchema = z.object({
   apiUrl: z.string().url("Invalid URL").optional(),
   apiKey: z.string().min(1, "API Key is required").optional(),
   apiSecret: z.string().optional(),
+  pluginSecret: z.string().optional(),
   currency: z.string().optional(),
   timezone: z.string().optional(),
   isActive: z.boolean().optional(),
@@ -108,6 +109,12 @@ export async function PUT(
     }
     if (validatedData.apiSecret) {
       updateData.apiSecret = encrypt(validatedData.apiSecret)
+    }
+    if (typeof validatedData.pluginSecret === 'string') {
+      // Empty string = remove plugin secret; non-empty = set new secret
+      updateData.pluginSecret = validatedData.pluginSecret.trim()
+        ? encrypt(validatedData.pluginSecret.trim())
+        : null
     }
 
     const store = await prisma.store.update({

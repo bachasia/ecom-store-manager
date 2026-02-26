@@ -1,6 +1,6 @@
 "use client"
 
-import { DollarSign, TrendingUp, Percent, Target } from "lucide-react"
+import { DollarSign, TrendingUp, Percent, Target, Package, ShoppingCart, Megaphone } from "lucide-react"
 import { useTranslations } from 'next-intl'
 import { LineChart, Line, ResponsiveContainer } from 'recharts'
 
@@ -9,10 +9,19 @@ interface KPICardsProps {
   netProfit: number
   profitMargin: number
   roas: number | null
+  cogs?: number
+  adsCosts?: number
+  totalItemsSold?: number
+  itemsPerOrder?: number
+  totalOrders?: number
+  aov?: number
   revenueTrend?: Array<{
     date: string
     revenue: number
     netProfit?: number
+    cogs?: number
+    itemsSold?: number
+    ordersCount?: number
   }>
   netProfitTrend?: Array<{
     date: string
@@ -26,6 +35,8 @@ interface KPICardsProps {
   netProfitChangePct?: number | null
   profitMarginChangePct?: number | null
   roasChangePct?: number | null
+  itemsSoldChangePct?: number | null
+  ordersChangePct?: number | null
   loading?: boolean
 }
 
@@ -34,6 +45,12 @@ export default function KPICards({
   netProfit, 
   profitMargin, 
   roas,
+  cogs = 0,
+  adsCosts = 0,
+  totalItemsSold = 0,
+  itemsPerOrder = 0,
+  totalOrders = 0,
+  aov = 0,
   revenueTrend = [],
   netProfitTrend = [],
   profitMarginTrend = [],
@@ -41,6 +58,8 @@ export default function KPICards({
   netProfitChangePct = null,
   profitMarginChangePct = null,
   roasChangePct = null,
+  itemsSoldChangePct = null,
+  ordersChangePct = null,
   loading = false 
 }: KPICardsProps) {
   const t = useTranslations('kpi')
@@ -63,17 +82,17 @@ export default function KPICards({
     return `${value.toFixed(2)}x`
   }
 
+  const formatNumber = (value: number) => {
+    return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(value)
+  }
+
   const revenuePerDay = revenueTrend.length > 0 ? revenue / revenueTrend.length : 0
 
   const renderChange = (pct: number | null) => {
     if (pct === null || Number.isNaN(pct) || !Number.isFinite(pct)) return null
     const rounded = Math.abs(pct) < 0.1 ? 0 : pct
     const isUp = rounded >= 0
-    return (
-      <p className={`mt-1 text-xs font-medium ${isUp ? 'text-green-600' : 'text-red-600'}`}>
-        {isUp ? '↑' : '↓'} {isUp ? '+' : ''}{rounded.toFixed(1)}% {t('vsPrevPeriod')}
-      </p>
-    )
+    return <span className={`text-sm font-semibold ${isUp ? 'text-green-600' : 'text-red-600'}`}>{isUp ? '↑' : '↓'} {isUp ? '+' : ''}{rounded.toFixed(1)}%</span>
   }
 
   const marginValues = profitMarginTrend
@@ -85,7 +104,7 @@ export default function KPICards({
   if (loading) {
     return (
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4">
-        {[1, 2, 3, 4].map((i) => (
+        {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
           <div key={i} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 animate-pulse">
             <div className="flex items-center justify-between">
               <div className="flex-1">
@@ -135,6 +154,34 @@ export default function KPICards({
       gradient: "from-red-500 to-red-600",
       textColor: "text-red-600",
     },
+    {
+      title: t('totalItemsSold'),
+      value: formatNumber(totalItemsSold),
+      icon: Package,
+      gradient: "from-cyan-500 to-cyan-600",
+      textColor: "text-cyan-600",
+    },
+    {
+      title: t('totalOrders'),
+      value: formatNumber(totalOrders),
+      icon: ShoppingCart,
+      gradient: "from-violet-500 to-violet-600",
+      textColor: "text-violet-600",
+    },
+    {
+      title: t('cogsCard'),
+      value: formatCurrency(cogs),
+      icon: DollarSign,
+      gradient: "from-slate-500 to-slate-600",
+      textColor: "text-slate-600",
+    },
+    {
+      title: t('adCostsCard'),
+      value: formatCurrency(adsCosts),
+      icon: Megaphone,
+      gradient: "from-rose-500 to-rose-600",
+      textColor: "text-rose-600",
+    },
   ]
 
   return (
@@ -149,25 +196,53 @@ export default function KPICards({
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-gray-500">{card.title}</p>
-                <p className="mt-2 text-3xl font-bold text-gray-900">{card.value}</p>
+                <div className="mt-2 flex items-center gap-2">
+                  <p className="text-3xl font-bold text-gray-900">{card.value}</p>
+                  {index === 0 && renderChange(revenueChangePct)}
+                  {index === 1 && renderChange(netProfitChangePct)}
+                  {index === 2 && renderChange(profitMarginChangePct)}
+                  {index === 3 && renderChange(roasChangePct)}
+                  {index === 4 && renderChange(itemsSoldChangePct)}
+                  {index === 5 && renderChange(ordersChangePct)}
+                </div>
                 {index === 0 && (
                   <>
                     <p className="mt-1 text-xs text-gray-500">
-                      {t('perDay')}: <span className="font-medium text-gray-700">{formatCurrency(revenuePerDay)}</span>
+                      ~<span className="font-medium text-gray-700">{formatCurrency(revenuePerDay)}</span>/day
                     </p>
-                    {renderChange(revenueChangePct)}
                   </>
                 )}
                 {index === 1 && (
                   <>
                     <p className="mt-1 text-xs text-gray-500">
-                      {t('perDay')}: <span className="font-medium text-gray-700">{formatCurrency(netProfitTrend.length > 0 ? netProfit / netProfitTrend.length : 0)}</span>
+                      ~<span className="font-medium text-gray-700">{formatCurrency(netProfitTrend.length > 0 ? netProfit / netProfitTrend.length : 0)}</span>/day
                     </p>
-                    {renderChange(netProfitChangePct)}
                   </>
                 )}
-                {index === 2 && renderChange(profitMarginChangePct)}
-                {index === 3 && renderChange(roasChangePct)}
+                {index === 4 && (
+                  <>
+                    <p className="mt-1 text-xs text-gray-500">
+                      ~<span className="font-medium text-gray-700">{itemsPerOrder.toFixed(1)}</span> {t('itemsPerOrder')}
+                    </p>
+                  </>
+                )}
+                {index === 5 && (
+                  <>
+                    <p className="mt-1 text-xs text-gray-500">
+                      AOV: <span className="font-medium text-gray-700">{formatCurrency(aov)}</span>
+                    </p>
+                  </>
+                )}
+                {index === 6 && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    ~<span className="font-medium text-gray-700">{formatCurrency(totalItemsSold > 0 ? cogs / totalItemsSold : 0)}</span>/{t('itemShort')}
+                  </p>
+                )}
+                {index === 7 && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    ~<span className="font-medium text-gray-700">{formatCurrency(revenueTrend.length > 0 ? adsCosts / revenueTrend.length : 0)}</span>/day
+                  </p>
+                )}
                 {index === 2 && marginHigh !== null && marginLow !== null && (
                   <p className="mt-1 text-xs text-gray-500">
                     {t('high')}: <span className="font-medium text-green-600">{formatPercent(marginHigh)}</span>
@@ -221,6 +296,87 @@ export default function KPICards({
                       type="monotone"
                       dataKey="profitMargin"
                       stroke="#ea580c"
+                      strokeWidth={2}
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+            {index === 3 && revenueTrend.length > 0 && (
+              <div className="mt-4 h-14 rounded-lg bg-red-50/70 px-2 py-1">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={revenueTrend}>
+                    <Line
+                      type="monotone"
+                      dataKey="roas"
+                      stroke="#dc2626"
+                      strokeWidth={2}
+                      dot={false}
+                      isAnimationActive={false}
+                      connectNulls
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+            {index === 4 && revenueTrend.length > 0 && (
+              <div className="mt-4 h-14 rounded-lg bg-cyan-50/70 px-2 py-1">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={revenueTrend}>
+                    <Line
+                      type="monotone"
+                      dataKey="itemsSold"
+                      stroke="#0891b2"
+                      strokeWidth={2}
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+            {index === 5 && revenueTrend.length > 0 && (
+              <div className="mt-4 h-14 rounded-lg bg-violet-50/70 px-2 py-1">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={revenueTrend}>
+                    <Line
+                      type="monotone"
+                      dataKey="ordersCount"
+                      stroke="#7c3aed"
+                      strokeWidth={2}
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+            {index === 6 && revenueTrend.length > 0 && (
+              <div className="mt-4 h-14 rounded-lg bg-slate-50/80 px-2 py-1">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={revenueTrend}>
+                    <Line
+                      type="monotone"
+                      dataKey="cogs"
+                      stroke="#475569"
+                      strokeWidth={2}
+                      dot={false}
+                      isAnimationActive={false}
+                    />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            )}
+            {index === 7 && revenueTrend.length > 0 && (
+              <div className="mt-4 h-14 rounded-lg bg-rose-50/80 px-2 py-1">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={revenueTrend}>
+                    <Line
+                      type="monotone"
+                      dataKey="adsCosts"
+                      stroke="#e11d48"
                       strokeWidth={2}
                       dot={false}
                       isAnimationActive={false}

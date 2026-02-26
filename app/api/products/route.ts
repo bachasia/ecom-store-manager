@@ -4,10 +4,6 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 
-const PRODUCTS_CACHE_HEADERS = {
-  "Cache-Control": "private, max-age=20, stale-while-revalidate=40",
-}
-
 // GET /api/products - List products grouped by parent
 export async function GET(req: Request) {
   try {
@@ -42,13 +38,10 @@ export async function GET(req: Request) {
     const storeIds = userStores.map((s) => s.id)
 
     if (storeIds.length === 0) {
-      return NextResponse.json(
-        {
-          products: [],
-          pagination: { page, limit, total: 0, totalPages: 0 }
-        },
-        { headers: PRODUCTS_CACHE_HEADERS }
-      )
+      return NextResponse.json({
+        products: [],
+        pagination: { page, limit, total: 0, totalPages: 0 }
+      })
     }
 
     const searchTerm = search?.trim() ?? ""
@@ -95,18 +88,15 @@ export async function GET(req: Request) {
     `)
 
     if (pagedGroups.length === 0) {
-      return NextResponse.json(
-        {
-          products: [],
-          pagination: {
-            page,
-            limit,
-            total,
-            totalPages: Math.ceil(total / limit)
-          }
-        },
-        { headers: PRODUCTS_CACHE_HEADERS }
-      )
+      return NextResponse.json({
+        products: [],
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit)
+        }
+      })
     }
 
     const groupFilters = pagedGroups.map((g) =>
@@ -203,18 +193,15 @@ export async function GET(req: Request) {
     const groups = Array.from(groupMap.values())
     const paginated = groups
 
-    return NextResponse.json(
-      {
-        products: paginated,
-        pagination: {
-          page,
-          limit,
-          total,
-          totalPages: Math.ceil(total / limit)
-        }
-      },
-      { headers: PRODUCTS_CACHE_HEADERS }
-    )
+    return NextResponse.json({
+      products: paginated,
+      pagination: {
+        page,
+        limit,
+        total,
+        totalPages: Math.ceil(total / limit)
+      }
+    })
 
   } catch (error: any) {
     console.error("Get products error:", error)

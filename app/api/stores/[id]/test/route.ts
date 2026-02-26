@@ -4,6 +4,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { prisma } from "@/lib/prisma"
 import { ShopbaseClient } from "@/lib/integrations/shopbase"
 import { WooCommerceClient } from "@/lib/integrations/woocommerce"
+import { WcPluginClient } from "@/lib/integrations/wc-plugin"
 
 // POST /api/stores/[id]/test - Test store connection
 export async function POST(
@@ -20,13 +21,10 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Get store with encrypted credentials
+    // Get store with encrypted credentials (pluginSecret included for plugin test)
     const store = await prisma.store.findFirst({
-      where: {
-        id: id,
-        userId: session.user.id
-      }
-    })
+      where: { id: id, userId: session.user.id }
+    }) as any
 
     if (!store) {
       return NextResponse.json({ error: "Store not found" }, { status: 404 })
@@ -124,14 +122,30 @@ export async function POST(
         })
       }
     } else if (store.platform === 'woocommerce') {
-      if (!store.apiSecret) {
-        return NextResponse.json(
-          { error: "API Secret is required for WooCommerce" },
-          { status: 400 }
-        )
+      const { searchParams: sp } = new URL(req.url)
+      const testPlugin = ["1", "true", "yes"].includes((sp.get("plugin") || "").toLowerCase())
+
+      if (testPlugin) {
+        // Test PNL Sync Plugin connection
+        if (!store.pluginSecret) {
+          return NextResponse.json(
+            { success: false, message: "Plugin secret not configured for this store" },
+            { status: 400 }
+          )
+        }
+        const pluginClient = new WcPluginClient(store.apiUrl, store.pluginSecret)
+        result = await pluginClient.testConnection()
+      } else {
+        // Test standard WooCommerce REST API
+        if (!store.apiSecret) {
+          return NextResponse.json(
+            { error: "API Secret is required for WooCommerce" },
+            { status: 400 }
+          )
+        }
+        const client = new WooCommerceClient(store.apiUrl, store.apiKey, store.apiSecret)
+        result = await client.testConnection()
       }
-      const client = new WooCommerceClient(store.apiUrl, store.apiKey, store.apiSecret)
-      result = await client.testConnection()
     } else {
       return NextResponse.json(
         { error: "Platform not supported" },

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useTranslations } from "next-intl"
+import CustomSelect from "@/components/ui/custom-select"
 
 interface PaymentGateway {
   id: string
@@ -16,6 +17,11 @@ interface PaymentGateway {
 export default function SettingsPage() {
   const t = useTranslations('settings')
   const [gateways, setGateways] = useState<PaymentGateway[]>([])
+  const [stores, setStores] = useState<Array<{ id: string; name: string }>>([])
+  const [selectedStoreByGateway, setSelectedStoreByGateway] = useState<Record<string, string>>( {})
+  const [applyingGatewayId, setApplyingGatewayId] = useState<string | null>(null)
+  const [timezone, setTimezone] = useState('UTC')
+  const [timezoneMessage, setTimezoneMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [loading, setLoading] = useState(true)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [editForm, setEditForm] = useState({
@@ -25,8 +31,55 @@ export default function SettingsPage() {
   })
 
   useEffect(() => {
+    fetchTimezone()
     fetchGateways()
+    fetchStores()
   }, [])
+
+  const fetchStores = async () => {
+    try {
+      const response = await fetch('/api/stores')
+      const data = await response.json()
+      if (response.ok) {
+        setStores((data.stores || []).map((s: any) => ({ id: s.id, name: s.name })))
+      }
+    } catch (error) {
+      console.error('Error fetching stores for apply action:', error)
+    }
+  }
+
+  const fetchTimezone = async () => {
+    try {
+      const response = await fetch('/api/settings/timezone')
+      const data = await response.json()
+      if (response.ok && data.timezone) {
+        setTimezone(data.timezone)
+      }
+    } catch (error) {
+      console.error('Error fetching timezone:', error)
+    }
+  }
+
+  const saveTimezone = async () => {
+    try {
+      setTimezoneMessage(null)
+      const response = await fetch('/api/settings/timezone', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ timezone })
+      })
+      if (!response.ok) {
+        setTimezoneMessage({ type: 'error', text: t('updateError') })
+        alert(t('updateError'))
+      } else {
+        setTimezoneMessage({ type: 'success', text: t('timezoneSaved') })
+      }
+    } catch (error) {
+      console.error('Error saving timezone:', error)
+      setTimezoneMessage({ type: 'error', text: t('updateError') })
+      alert(t('updateError'))
+    }
+  }
 
   const fetchGateways = async () => {
     try {
@@ -91,6 +144,32 @@ export default function SettingsPage() {
     }
   }
 
+  const handleApplyGateway = async (gatewayId: string) => {
+    try {
+      setApplyingGatewayId(gatewayId)
+      const storeId = selectedStoreByGateway[gatewayId] || ''
+
+      const response = await fetch(`/api/settings/gateways/${gatewayId}/apply`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ storeId: storeId || undefined }),
+      })
+
+      const data = await response.json()
+      if (!response.ok) {
+        alert(data.error || t('updateError'))
+        return
+      }
+
+      alert(data.message || t('timezoneSaved'))
+    } catch (error) {
+      console.error('Error applying gateway mapping:', error)
+      alert(t('updateError'))
+    } finally {
+      setApplyingGatewayId(null)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -109,6 +188,32 @@ export default function SettingsPage() {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-6 py-5 border-b border-gray-100">
+          <h3 className="text-lg font-semibold text-gray-900">{t('defaultTimezone')}</h3>
+          <p className="mt-1 text-sm text-gray-500">{t('timezoneDesc')}</p>
+          <div className="mt-3 flex items-center gap-2">
+            <CustomSelect
+              value={timezone}
+              onChange={setTimezone}
+              className="w-64"
+              searchable
+              searchPlaceholder={t('searchTimezone')}
+              options={Intl.supportedValuesOf('timeZone').map((tz) => ({ value: tz, label: tz }))}
+            />
+            <button
+              onClick={saveTimezone}
+              className="h-[42px] px-4 rounded-xl text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:shadow-md transition-all"
+            >
+              {t('save')}
+            </button>
+          </div>
+          {timezoneMessage && (
+            <p className={`mt-2 text-sm ${timezoneMessage.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+              {timezoneMessage.text}
+            </p>
+          )}
+        </div>
+
         <div className="px-6 py-5 border-b border-gray-100">
           <h3 className="text-lg font-semibold text-gray-900">{t('paymentGateways')}</h3>
           <p className="mt-1 text-sm text-gray-500">
@@ -192,7 +297,7 @@ export default function SettingsPage() {
                     ) : (
                       <div className="mt-2 flex items-center space-x-4">
                         <span className="text-sm text-gray-600">
-                          {t('fee')}: <span className="font-semibold text-gray-900">{gateway.feePercentage}%</span> + 
+                          {t('fee')} <span className="font-semibold text-gray-900">{gateway.feePercentage}%</span> + 
                           <span className="font-semibold text-gray-900"> ${Number(gateway.feeFixed).toFixed(2)}</span>
                         </span>
                         {gateway.matchKeywords && (
@@ -206,6 +311,27 @@ export default function SettingsPage() {
                         </button>
                       </div>
                     )}
+
+                    {/* Apply alias mapping to historical orders */}
+                    <div className="mt-3 flex items-center gap-2 flex-wrap">
+                      <select
+                        value={selectedStoreByGateway[gateway.id] || ''}
+                        onChange={(e) => setSelectedStoreByGateway((prev) => ({ ...prev, [gateway.id]: e.target.value }))}
+                        className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs bg-white text-gray-700"
+                      >
+                        <option value="">All stores</option>
+                        {stores.map((s) => (
+                          <option key={s.id} value={s.id}>{s.name}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => handleApplyGateway(gateway.id)}
+                        disabled={applyingGatewayId === gateway.id}
+                        className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50"
+                      >
+                        {applyingGatewayId === gateway.id ? 'Applying...' : 'Apply to orders'}
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

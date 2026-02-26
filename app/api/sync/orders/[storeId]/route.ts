@@ -4,6 +4,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { prisma } from "@/lib/prisma"
 import { ShopbaseClient } from "@/lib/integrations/shopbase"
 import { WooCommerceClient } from "@/lib/integrations/woocommerce"
+import { WcPluginClient, PluginOrder } from "@/lib/integrations/wc-plugin"
 import { calculateTransactionFee } from "@/lib/calculations/transaction-fee"
 
 class CancelledError extends Error {
@@ -26,11 +27,8 @@ export async function POST(
 
     // Get store
     const store = await prisma.store.findFirst({
-      where: {
-        id: storeId,
-        userId: session.user.id
-      }
-    })
+      where: { id: storeId, userId: session.user.id }
+    }) as any  // cast to any — pluginSecret field exists at runtime
 
     if (!store) {
       return NextResponse.json({ error: "Store not found" }, { status: 404 })
@@ -501,122 +499,157 @@ export async function POST(
         }
 
       } else if (store.platform === 'woocommerce') {
-        if (!store.apiSecret) {
-          throw new Error("API Secret is required for WooCommerce")
-        }
 
-        const client = new WooCommerceClient(store.apiUrl, store.apiKey, store.apiSecret)
-        
-        const params: any = {}
-        if (lastSyncAt) {
-          params.modifiedAfter = lastSyncAt.toISOString()
-        }
+        // ── Shared helper: upsert 1 order (plugin format hoặc WC REST format) ──
+        const upsertOrder = async (orderInput: {
+          id: number | string
+          number: string | number
+          status: string
+          date_created: string | null
+          total: string | number
+          subtotal: string | number
+          discount_total: string | number
+          shipping_total: string | number
+          total_tax: string | number
+          refund_total?: number
+          refunds?: Array<{ total: string }>
+          payment_method?: string | null
+          payment_method_title?: string | null
+          billing: { email?: string; first_name?: string; last_name?: string; country?: string; address_1?: string; address_2?: string; city?: string; state?: string; postcode?: string }
+          shipping?: { country?: string; first_name?: string; last_name?: string; address_1?: string; address_2?: string; city?: string; state?: string; postcode?: string }
+          line_items: Array<{ id: number; sku?: string | null; product_id?: number | null; variation_id?: number | null; name: string; quantity: number; price: number; total: number | string }>
+          meta_data?: Array<{ key: string; value: any }>
+        }) => {
+          const externalId = String(orderInput.id)
 
-        const orders = await client.getAllOrders(params)
+          const refundTotal = orderInput.refund_total
+            ?? (orderInput.refunds?.reduce((s, r) => s + Math.abs(parseFloat(r.total)), 0) ?? 0)
 
-        for (const order of orders) {
-          if (await isCancelled()) throw new CancelledError()
-
-          const existingOrder = await prisma.order.findUnique({
-            where: {
-              storeId_externalId: {
-                storeId: store.id,
-                externalId: order.id.toString(),
-              }
-            }
-          })
-
-          // Calculate refund total
-          const refundTotal = order.refunds?.reduce(
-            (sum, refund) => sum + Math.abs(parseFloat(refund.total)), 
-            0
-          ) || 0
-
-          // Calculate total COGS from order items
           let totalCOGS = 0
-          for (const item of order.line_items) {
-            const product = findProductForItem(item as { sku?: string | null; variant_id?: string | number | null; variation_id?: string | number | null; product_id?: string | number | null })
+          for (const item of orderInput.line_items) {
+            const product = findProductForItem({ sku: item.sku, variation_id: item.variation_id, product_id: item.product_id })
             totalCOGS += Number(product?.baseCost || 0) * item.quantity
           }
 
-          const wooMeta = order.meta_data || []
+          const metaList = orderInput.meta_data || []
           const getMeta = (keys: string[]) => {
-            for (const key of keys) {
-              const lowerKey = key.toLowerCase()
-              const matched = wooMeta.find((m) => {
-                const mk = (m.key || '').toLowerCase()
-                return mk === lowerKey || mk.includes(lowerKey)
-              })
-              if (matched?.value !== undefined && matched?.value !== null && String(matched.value).trim() !== '') {
-                return String(matched.value)
-              }
+            const normalizedKeys = keys.map(k => k.toLowerCase())
+
+            // 1) exact match first
+            for (const key of normalizedKeys) {
+              const m = metaList.find(d => (d.key || '').toLowerCase() === key)
+              if (m?.value != null && String(m.value).trim()) return String(m.value)
             }
+
+            // 2) contains match fallback for compatibility
+            for (const key of normalizedKeys) {
+              const m = metaList.find(d => (d.key || '').toLowerCase().includes(key))
+              if (m?.value != null && String(m.value).trim()) return String(m.value)
+            }
+
             return null
           }
 
-          const rawPaymentMethod = order.payment_method_title || order.payment_method || getMeta(['_payment_method_title', '_payment_method'])
-          const paymentGateway = resolvePaymentGateway(rawPaymentMethod)
+          const parseUtmFromUrl = (urlValue: string | null | undefined): { source: string | null; medium: string | null; campaign: string | null } => {
+            if (!urlValue) return { source: null, medium: null, campaign: null }
 
+            const trimmed = urlValue.trim()
+            if (!trimmed) return { source: null, medium: null, campaign: null }
+
+            try {
+              const normalizedUrl = trimmed.startsWith('http://') || trimmed.startsWith('https://')
+                ? trimmed
+                : `https://dummy.local${trimmed.startsWith('/') ? '' : '/'}${trimmed}`
+
+              const parsed = new URL(normalizedUrl)
+              return {
+                source: parsed.searchParams.get('utm_source'),
+                medium: parsed.searchParams.get('utm_medium'),
+                campaign: parsed.searchParams.get('utm_campaign'),
+              }
+            } catch {
+              return { source: null, medium: null, campaign: null }
+            }
+          }
+
+          const rawPaymentMethod = orderInput.payment_method_title || orderInput.payment_method || getMeta(['_payment_method_title', '_payment_method'])
+          const paymentGateway = resolvePaymentGateway(rawPaymentMethod)
           const transactionFee = calculateTransactionFee(
-            parseFloat(order.total),
-            paymentGateway ? {
-              id: paymentGateway.id,
-              name: paymentGateway.name,
-              displayName: paymentGateway.displayName,
-              feePercentage: Number(paymentGateway.feePercentage),
-              feeFixed: Number(paymentGateway.feeFixed),
-              isActive: paymentGateway.isActive,
-            } : null
+            parseFloat(String(orderInput.total)),
+            paymentGateway ? { id: paymentGateway.id, name: paymentGateway.name, displayName: paymentGateway.displayName, feePercentage: Number(paymentGateway.feePercentage), feeFixed: Number(paymentGateway.feeFixed), isActive: paymentGateway.isActive } : null
           )
 
-          const utmSource = getMeta(['utm_source', '_utm_source', 'source'])
-          const utmMediumRaw = getMeta(['utm_medium', '_utm_medium', 'medium'])
-          const utmCampaign = getMeta(['utm_campaign', '_utm_campaign', 'campaign'])
+          const attributionSource = getMeta([
+            'utm_source',
+            '_utm_source',
+            '_wc_order_attribution_utm_source',
+            '_wc_order_attribution_source_type',
+            'source',
+            '_source',
+          ])
+          const attributionMedium = getMeta([
+            'utm_medium',
+            '_utm_medium',
+            '_wc_order_attribution_utm_medium',
+            'medium',
+            '_medium',
+          ])
+          const attributionCampaign = getMeta([
+            'utm_campaign',
+            '_utm_campaign',
+            '_wc_order_attribution_utm_campaign',
+            'campaign',
+            '_campaign',
+          ])
+
+          const landingOrReferrer =
+            getMeta(['landing_site_ref', '_landing_site_ref']) ||
+            getMeta(['landing_site', '_landing_site']) ||
+            getMeta(['referring_site', '_referring_site']) ||
+            getMeta(['_wc_order_attribution_session_entry']) ||
+            getMeta(['_wc_order_attribution_referrer'])
+
+          const utmFromUrl = parseUtmFromUrl(landingOrReferrer)
+          const utmSource = attributionSource || utmFromUrl.source
+          const utmMediumRaw = attributionMedium || utmFromUrl.medium
+          const utmCampaign = attributionCampaign || utmFromUrl.campaign
           const utmMedium = utmMediumRaw || inferUtmMedium(utmSource)
 
           const orderData = {
-            orderNumber: String(order.number),
-            orderDate: new Date(order.date_created),
-            status: order.status,
-            customerEmail: order.billing.email || null,
-            customerName: `${order.billing.first_name} ${order.billing.last_name}`.trim() || null,
-            customerCountry: order.shipping?.country || order.billing.country || null,
-            billingAddress: formatAddress(order.billing),
-            shippingAddress: formatAddress(order.shipping),
-            subtotal: parseFloat(order.subtotal),
-            discount: parseFloat(order.discount_total),
-            shipping: parseFloat(order.shipping_total),
-            tax: parseFloat(order.total_tax),
-            total: parseFloat(order.total),
+            orderNumber: String(orderInput.number),
+            orderDate: new Date(orderInput.date_created || Date.now()),
+            status: orderInput.status,
+            customerEmail: orderInput.billing?.email || null,
+            customerName: `${orderInput.billing?.first_name || ''} ${orderInput.billing?.last_name || ''}`.trim() || null,
+            customerCountry: orderInput.shipping?.country || orderInput.billing?.country || null,
+            billingAddress: formatAddress(orderInput.billing),
+            shippingAddress: formatAddress(orderInput.shipping),
+            subtotal: parseFloat(String(orderInput.subtotal)) || 0,
+            discount: parseFloat(String(orderInput.discount_total)) || 0,
+            shipping: parseFloat(String(orderInput.shipping_total)) || 0,
+            tax: parseFloat(String(orderInput.total_tax)) || 0,
+            total: parseFloat(String(orderInput.total)) || 0,
             refundAmount: refundTotal,
             paymentMethod: rawPaymentMethod || null,
             paymentGatewayId: paymentGateway?.id || null,
-            transactionFee: transactionFee,
-            totalCOGS: totalCOGS,
+            transactionFee,
+            totalCOGS,
             utmSource,
             utmMedium,
             utmCampaign,
           }
 
+          const existingOrder = await prisma.order.findUnique({
+            where: { storeId_externalId: { storeId: store.id, externalId } }
+          })
+
           if (existingOrder) {
-            await prisma.order.update({
-              where: { id: existingOrder.id },
-              data: orderData,
-            })
+            await prisma.order.update({ where: { id: existingOrder.id }, data: orderData })
             ordersUpdated++
           } else {
-            const newOrder = await prisma.order.create({
-              data: {
-                storeId: store.id,
-                externalId: order.id.toString(),
-                ...orderData,
-              }
-            })
-
-            // Create order items
-            for (const item of order.line_items) {
-              const product = findProductForItem(item as { sku?: string | null; variant_id?: string | number | null; variation_id?: string | number | null; product_id?: string | number | null })
-
+            const newOrder = await prisma.order.create({ data: { storeId: store.id, externalId, ...orderData } })
+            for (const item of orderInput.line_items) {
+              const product = findProductForItem({ sku: item.sku, variation_id: item.variation_id, product_id: item.product_id })
               await prisma.orderItem.create({
                 data: {
                   orderId: newOrder.id,
@@ -625,17 +658,66 @@ export async function POST(
                   productName: item.name,
                   quantity: item.quantity,
                   price: item.price,
-                  total: parseFloat(item.total),
+                  total: parseFloat(String(item.total)),
                   unitCost: Number(product?.baseCost || 0),
                   totalCost: Number(product?.baseCost || 0) * item.quantity,
                 }
               })
             }
-
             ordersCreated++
           }
-
           totalProcessed++
+        }
+
+        if (store.pluginSecret) {
+          // ── Plugin fast path ─────────────────────────────────────────────────
+          console.info('[sync:orders] Using PNL Sync Plugin — fast path')
+          const pluginClient = new WcPluginClient(store.apiUrl, store.pluginSecret)
+
+          await pluginClient.streamOrders({
+            modifiedAfter: lastSyncAt?.toISOString(),
+            perPage: 100,  // 100 orders/page — consistent với products sync
+            onPage: async (orders, pageInfo) => {
+              console.info(`[sync:orders][plugin] page=${pageInfo.page}/${pageInfo.totalPages} orders=${orders.length}`)
+              for (const order of orders) {
+                if (await isCancelled()) throw new CancelledError()
+                await upsertOrder(order as any)
+              }
+            },
+            onProgress: (fetched, total) => {
+              console.info(`[sync:orders][plugin] fetched=${fetched}/${total}`)
+            },
+          })
+
+        } else {
+          // ── WooCommerce REST API fallback ────────────────────────────────────
+          if (!store.apiSecret) throw new Error("API Secret is required for WooCommerce")
+          console.info('[sync:orders] Using WooCommerce REST API (install PNL Plugin for faster sync)')
+
+          const client = new WooCommerceClient(store.apiUrl, store.apiKey, store.apiSecret)
+          const params: any = {}
+          if (lastSyncAt) params.modifiedAfter = lastSyncAt.toISOString()
+
+          const orders = await client.getAllOrders(params)
+
+          for (const order of orders) {
+            if (await isCancelled()) throw new CancelledError()
+            await upsertOrder({
+              ...order,
+              billing: { ...order.billing },
+              shipping: order.shipping ? { ...order.shipping } : undefined,
+              line_items: order.line_items.map(item => ({
+                id: item.id,
+                sku: item.sku,
+                product_id: null,
+                variation_id: null,
+                name: item.name,
+                quantity: item.quantity,
+                price: item.price,
+                total: item.total,
+              })),
+            } as any)
+          }
         }
 
       } else {

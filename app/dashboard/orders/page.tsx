@@ -4,6 +4,8 @@ import { useState, useEffect } from "react"
 import { useTranslations } from "next-intl"
 import { ShoppingCart, Search, RefreshCw, Eye } from "lucide-react"
 import StoreSelect from "@/components/ui/store-select"
+import DateRangeSelect, { type DatePreset } from "@/components/ui/date-range-select"
+import CustomSelect from "@/components/ui/custom-select"
 
 interface Order {
   id: string
@@ -22,7 +24,7 @@ interface Order {
   refundAmount: number
   netProfit: number
   profitMargin: number
-  store: { name: string }
+  store: { name: string; platform?: string }
 }
 
 interface Store {
@@ -31,15 +33,73 @@ interface Store {
   platform: string
 }
 
+function getPlatformIcon(platform?: string): string | null {
+  if (platform === "shopbase") return "/platform/shopbase-logo32.png"
+  if (platform === "woocommerce") return "/platform/woocommerce-logo32.png"
+  return null
+}
+
+const toYMD = (date: Date) => {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, '0')
+  const d = String(date.getDate()).padStart(2, '0')
+  return `${y}-${m}-${d}`
+}
+
+const getPresetRange = (preset: Exclude<DatePreset, 'custom'>) => {
+  const now = new Date()
+
+  if (preset === 'today') {
+    const today = toYMD(now)
+    return { startDate: today, endDate: today }
+  }
+
+  if (preset === 'yesterday') {
+    const d = new Date(now)
+    d.setDate(d.getDate() - 1)
+    const y = toYMD(d)
+    return { startDate: y, endDate: y }
+  }
+
+  if (preset === 'mtd') {
+    const start = new Date(now.getFullYear(), now.getMonth(), 1)
+    return { startDate: toYMD(start), endDate: toYMD(now) }
+  }
+
+  if (preset === 'last7') {
+    const start = new Date(now)
+    start.setDate(start.getDate() - 6)
+    return { startDate: toYMD(start), endDate: toYMD(now) }
+  }
+
+  if (preset === 'last30') {
+    const start = new Date(now)
+    start.setDate(start.getDate() - 29)
+    return { startDate: toYMD(start), endDate: toYMD(now) }
+  }
+
+  if (preset === 'lastMonth') {
+    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    const end = new Date(now.getFullYear(), now.getMonth(), 0)
+    return { startDate: toYMD(start), endDate: toYMD(end) }
+  }
+
+  const start = new Date(now.getFullYear() - 1, 0, 1)
+  const end = new Date(now.getFullYear() - 1, 11, 31)
+  return { startDate: toYMD(start), endDate: toYMD(end) }
+}
+
 export default function OrdersPage() {
   const t = useTranslations('orders')
   const tCommon = useTranslations('common')
+  const tDashboard = useTranslations('dashboard')
   const [orders, setOrders] = useState<Order[]>([])
   const [stores, setStores] = useState<Store[]>([])
   const [selectedStore, setSelectedStore] = useState("")
   const [selectedStatus, setSelectedStatus] = useState("")
   const [search, setSearch] = useState("")
-  const [dateRange, setDateRange] = useState({ startDate: "", endDate: "" })
+  const [datePreset, setDatePreset] = useState<DatePreset>('mtd')
+  const [dateRange, setDateRange] = useState(() => getPresetRange('mtd'))
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null)
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 0 })
@@ -119,6 +179,14 @@ export default function OrdersPage() {
     return <span className={`inline-flex items-center px-2.5 py-0.5 rounded-lg text-xs font-medium ${c.bg} ${c.text}`}>{label}</span>
   }
 
+  const handlePresetChange = (preset: DatePreset) => {
+    setDatePreset(preset)
+    if (preset !== 'custom') {
+      setDateRange(getPresetRange(preset))
+      setPagination((p) => ({ ...p, page: 1 }))
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div>
@@ -154,17 +222,52 @@ export default function OrdersPage() {
               platform: s.platform
             }))}
           />
-          <select value={selectedStatus} onChange={(e) => setSelectedStatus(e.target.value)} className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm">
-            <option value="">{t('status.all')}</option>
-            <option value="completed">{t('status.completed')}</option>
-            <option value="processing">{t('status.processing')}</option>
-            <option value="paid">{t('status.paid')}</option>
-            <option value="pending">{t('status.pending')}</option>
-            <option value="cancelled">{t('status.cancelled')}</option>
-            <option value="refunded">{t('status.refunded')}</option>
-          </select>
-          <input type="date" value={dateRange.startDate} onChange={(e) => setDateRange({...dateRange, startDate: e.target.value})} className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm" />
-          <input type="date" value={dateRange.endDate} onChange={(e) => setDateRange({...dateRange, endDate: e.target.value})} className="rounded-xl border border-gray-200 px-4 py-2.5 text-sm" />
+          <CustomSelect
+            value={selectedStatus}
+            onChange={(v) => { setSelectedStatus(v); setPagination((p) => ({ ...p, page: 1 })) }}
+            options={[
+              { value: '', label: t('status.all') },
+              { value: 'completed', label: t('status.completed') },
+              { value: 'processing', label: t('status.processing') },
+              { value: 'paid', label: t('status.paid') },
+              { value: 'pending', label: t('status.pending') },
+              { value: 'cancelled', label: t('status.cancelled') },
+              { value: 'refunded', label: t('status.refunded') },
+            ]}
+          />
+          <DateRangeSelect
+            value={datePreset}
+            onChange={handlePresetChange}
+            options={[
+              { value: 'today', label: tDashboard('today') },
+              { value: 'yesterday', label: tDashboard('yesterday') },
+              { value: 'mtd', label: tDashboard('monthToDate') },
+              { value: 'last7', label: tDashboard('last7Days') },
+              { value: 'last30', label: tDashboard('last30Days') },
+              { value: 'lastMonth', label: tDashboard('lastMonth') },
+              { value: 'lastYear', label: tDashboard('lastYear') },
+              { value: 'custom', label: tDashboard('custom') },
+            ]}
+          />
+          {datePreset === 'custom' ? (
+            <div className="flex items-center gap-2">
+              <input
+                type="date"
+                value={dateRange.startDate}
+                onChange={(e) => { setDateRange({ ...dateRange, startDate: e.target.value }); setPagination((p) => ({ ...p, page: 1 })) }}
+                className="w-[150px] rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+              />
+              <span className="text-gray-500">-</span>
+              <input
+                type="date"
+                value={dateRange.endDate}
+                onChange={(e) => { setDateRange({ ...dateRange, endDate: e.target.value }); setPagination((p) => ({ ...p, page: 1 })) }}
+                className="w-[150px] rounded-xl border border-gray-200 px-3 py-2.5 text-sm"
+              />
+            </div>
+          ) : (
+            <div />
+          )}
         </div>
       </div>
 
@@ -210,7 +313,20 @@ export default function OrdersPage() {
                           {order.customerCountry || 'N/A'}{order.utmMedium ? ` • ${order.utmMedium}` : ''}
                         </div>
                       </td>
-                      <td className="px-6 py-4 text-sm text-gray-600">{order.store.name}</td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        <div className="flex items-center gap-2">
+                          {getPlatformIcon(order.store.platform) ? (
+                            <img
+                              src={getPlatformIcon(order.store.platform) || ""}
+                              alt={`${order.store.platform} logo`}
+                              className="w-4 h-4 rounded-sm"
+                            />
+                          ) : (
+                            <span className="h-2.5 w-2.5 rounded-full bg-gray-300" />
+                          )}
+                          <span>{order.store.name}</span>
+                        </div>
+                      </td>
                       <td className="px-6 py-4">{getStatusBadge(order.status)}</td>
                       <td className="px-6 py-4">
                         <div className="text-sm text-gray-900">{order.paymentGateway?.displayName || 'N/A'}</div>

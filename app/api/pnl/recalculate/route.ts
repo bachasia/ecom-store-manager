@@ -105,13 +105,13 @@ export async function POST(req: Request) {
       allocationMethod as any
     )
 
-    // Update each order with recalculated P&L
-    let ordersUpdated = 0
+    // Build a lookup map for O(1) access instead of O(n) find per order
+    const ordersById = new Map(orders.map(o => [o.id, o]))
 
-    for (const allocatedOrder of ordersWithAllocatedAds) {
-      // Find original order data
-      const originalOrder = orders.find(o => o.id === allocatedOrder.id)
-      if (!originalOrder) continue
+    // Build all updates in memory, then flush in a single transaction
+    const updates = ordersWithAllocatedAds.flatMap(allocatedOrder => {
+      const originalOrder = ordersById.get(allocatedOrder.id)
+      if (!originalOrder) return []
 
       const pl = calculateOrderPL({
         id: allocatedOrder.id,
@@ -122,7 +122,7 @@ export async function POST(req: Request) {
         allocatedAdsCost: allocatedOrder.allocatedAdsCost || 0,
       })
 
-      await prisma.order.update({
+      return [prisma.order.update({
         where: { id: allocatedOrder.id },
         data: {
           allocatedAdsCost: allocatedOrder.allocatedAdsCost || 0,
@@ -130,10 +130,11 @@ export async function POST(req: Request) {
           netProfit: pl.netProfit,
           profitMargin: pl.profitMargin,
         }
-      })
+      })]
+    })
 
-      ordersUpdated++
-    }
+    await prisma.$transaction(updates)
+    const ordersUpdated = updates.length
 
     return NextResponse.json({
       success: true,

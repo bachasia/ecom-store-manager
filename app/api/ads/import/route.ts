@@ -2,6 +2,8 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import { prisma } from "@/lib/prisma"
+import { calculateOrderPL } from "@/lib/calculations/pnl"
+import { allocateAdsCosts } from "@/lib/calculations/ads-allocation"
 
 // POST /api/ads/import - Bulk import ads costs
 export async function POST(req: Request) {
@@ -37,24 +39,24 @@ export async function POST(req: Request) {
               storeId,
               date: new Date(row.date),
               platform,
-              campaignName: row.campaignName || null,
-              adsetName: row.adsetName || null,
+              campaignName: row.campaignName || "",
+              adsetName: row.adsetName || "",
             }
           },
           update: {
             spend: row.spend,
-            impressions: row.impressions || null,
-            clicks: row.clicks || null,
+            impressions: row.impressions ?? null,
+            clicks: row.clicks ?? null,
           },
           create: {
             storeId,
             date: new Date(row.date),
             platform,
-            campaignName: row.campaignName || null,
-            adsetName: row.adsetName || null,
+            campaignName: row.campaignName || "",
+            adsetName: row.adsetName || "",
             spend: row.spend,
-            impressions: row.impressions || null,
-            clicks: row.clicks || null,
+            impressions: row.impressions ?? null,
+            clicks: row.clicks ?? null,
           }
         })
         imported++
@@ -62,6 +64,84 @@ export async function POST(req: Request) {
         console.error("Error importing row:", error)
         errors++
       }
+    }
+
+    // Auto-recalculate P&L: allocate the imported ads costs to orders
+    try {
+      const orders = await prisma.order.findMany({
+        where: { storeId },
+        select: {
+          id: true,
+          storeId: true,
+          orderDate: true,
+          total: true,
+          refundAmount: true,
+          totalCOGS: true,
+          transactionFee: true,
+          allocatedAdsCost: true,
+        }
+      })
+
+      if (orders.length > 0) {
+        const allAdsCosts = await prisma.adsCost.findMany({
+          where: { storeId },
+          select: {
+            id: true,
+            storeId: true,
+            date: true,
+            platform: true,
+            campaignName: true,
+            adsetName: true,
+            spend: true,
+          }
+        })
+
+        // Build a lookup map for O(1) access instead of O(n) find per order
+        const ordersById = new Map(orders.map(o => [o.id, o]))
+
+        const ordersWithAllocatedAds = allocateAdsCosts(
+          orders.map(o => ({
+            ...o,
+            total: Number(o.total),
+            refundAmount: Number(o.refundAmount),
+            totalCOGS: Number(o.totalCOGS),
+            transactionFee: Number(o.transactionFee),
+            allocatedAdsCost: Number(o.allocatedAdsCost),
+          })),
+          allAdsCosts.map(a => ({ ...a, spend: Number(a.spend) })),
+          "revenue-weighted"
+        )
+
+        // Build all updates in memory, then flush in a single transaction
+        const updates = ordersWithAllocatedAds.flatMap(allocatedOrder => {
+          const originalOrder = ordersById.get(allocatedOrder.id)
+          if (!originalOrder) return []
+
+          const pl = calculateOrderPL({
+            id: allocatedOrder.id,
+            total: Number(originalOrder.total),
+            refundAmount: Number(originalOrder.refundAmount),
+            totalCOGS: Number(originalOrder.totalCOGS),
+            transactionFee: Number(originalOrder.transactionFee),
+            allocatedAdsCost: allocatedOrder.allocatedAdsCost || 0,
+          })
+
+          return [prisma.order.update({
+            where: { id: allocatedOrder.id },
+            data: {
+              allocatedAdsCost: allocatedOrder.allocatedAdsCost || 0,
+              grossProfit: pl.grossProfit,
+              netProfit: pl.netProfit,
+              profitMargin: pl.profitMargin,
+            }
+          })]
+        })
+
+        await prisma.$transaction(updates)
+      }
+    } catch (recalcError) {
+      console.error("Auto-recalculate error after ads import:", recalcError)
+      // Non-fatal: import succeeded, recalc failed — still return success
     }
 
     return NextResponse.json({

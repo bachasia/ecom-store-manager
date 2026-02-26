@@ -56,14 +56,16 @@ export async function GET(req: Request) {
       where.status = status
     }
 
-    // Date range filter
+    // Date range filter (inclusive by day)
     if (startDate || endDate) {
       where.orderDate = {}
       if (startDate) {
-        where.orderDate.gte = new Date(startDate)
+        where.orderDate.gte = new Date(`${startDate}T00:00:00.000Z`)
       }
       if (endDate) {
-        where.orderDate.lte = new Date(endDate)
+        const endExclusive = new Date(`${endDate}T00:00:00.000Z`)
+        endExclusive.setUTCDate(endExclusive.getUTCDate() + 1)
+        where.orderDate.lt = endExclusive
       }
     }
 
@@ -87,6 +89,7 @@ export async function GET(req: Request) {
           select: {
             id: true,
             name: true,
+            platform: true,
           }
         },
         paymentGateway: {
