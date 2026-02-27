@@ -212,10 +212,10 @@ Phase 4 — Settings Extension [✅] 1/1  task  ← DONE
 - Loading skeleton
 
 **Checklist**:
-- [ ] Table layout + columns
-- [ ] Expandable row drilldown
-- [ ] Color coding theo margin
-- [ ] Loading state
+- [x] Table layout + columns
+- [x] Expandable row drilldown
+- [x] Color coding theo margin
+- [x] Loading state
 
 ---
 
@@ -230,9 +230,9 @@ Phase 4 — Settings Extension [✅] 1/1  task  ← DONE
 - Mini bar chart: revenue + netProfit per store (Recharts)
 
 **Checklist**:
-- [ ] Modal layout
-- [ ] Store breakdown table
-- [ ] Mini bar chart
+- [x] Modal layout
+- [x] Store breakdown table
+- [x] Mini bar chart
 
 ---
 
@@ -249,10 +249,10 @@ Phase 4 — Settings Extension [✅] 1/1  task  ← DONE
 - Badge "Top 10" trên profitable rows
 
 **Checklist**:
-- [ ] Tabs: All / Profitable / Loss-making
-- [ ] Table + sortable columns
-- [ ] Row color coding
-- [ ] Top 10 badge
+- [x] Tabs: All / Profitable / Loss-making
+- [x] Table + sortable columns
+- [x] Row color coding
+- [x] Top 10 badge
 
 ---
 
@@ -267,9 +267,9 @@ Phase 4 — Settings Extension [✅] 1/1  task  ← DONE
 - Sortable
 
 **Checklist**:
-- [ ] Table layout
-- [ ] Platform badge/icon
-- [ ] Sort
+- [x] Table layout
+- [x] Platform badge/icon
+- [x] Sort
 
 ---
 
@@ -285,9 +285,9 @@ Phase 4 — Settings Extension [✅] 1/1  task  ← DONE
 - Legend với store names
 
 **Checklist**:
-- [ ] LineChart với dynamic lines per store
-- [ ] Metric toggle (revenue/profit/roas)
-- [ ] Granularity toggle (day/month)
+- [x] LineChart với dynamic lines per store
+- [x] Metric toggle (revenue/profit/roas)
+- [x] Granularity toggle (day/month)
 
 ---
 
@@ -304,13 +304,13 @@ Phase 4 — Settings Extension [✅] 1/1  task  ← DONE
 - Colors: đỏ (negative ROI), cam (low ROAS), vàng (missing COGS)
 
 **Checklist**:
-- [ ] Layout 3 sections / tabs
-- [ ] Summary stats row
-- [ ] Negative ROI list + link to orders
-- [ ] Low ROAS list + link to ads
-- [ ] Missing COGS list + link to products
-- [ ] Badge counts
-- [ ] Empty states
+- [x] Layout 3 sections / tabs
+- [x] Summary stats row
+- [x] Negative ROI list + link to orders
+- [x] Low ROAS list + link to ads
+- [x] Missing COGS list + link to products
+- [x] Badge counts
+- [x] Empty states
 
 ---
 
@@ -339,11 +339,11 @@ Phase 4 — Settings Extension [✅] 1/1  task  ← DONE
 - Filters apply cho tất cả tabs
 
 **Checklist**:
-- [ ] Page layout + header
-- [ ] Shared filter bar (DateRangeSelect + StoreSelect)
-- [ ] Tab navigation với searchParam
-- [ ] Export button (xlsx)
-- [ ] Render correct component per tab
+- [x] Page layout + header
+- [x] Shared filter bar (DateRangeSelect + StoreSelect)
+- [x] Tab navigation với searchParam
+- [x] Export button (xlsx)
+- [x] Render correct component per tab
 
 ---
 
@@ -357,9 +357,9 @@ Phase 4 — Settings Extension [✅] 1/1  task  ← DONE
 - Badge trên link: tổng số active alerts
 
 **Checklist**:
-- [ ] Thêm Reports link vào nav
-- [ ] Fetch alert summary count
-- [ ] Badge hiển thị count
+- [x] Thêm Reports link vào nav
+- [x] Fetch alert summary count
+- [x] Badge hiển thị count
 
 ---
 
@@ -388,15 +388,15 @@ Phase 4 — Settings Extension [✅] 1/1  task  ← DONE
 ```
 
 **Checklist**:
-- [ ] en.json — tất cả keys
-- [ ] vi.json — tất cả keys
+- [x] en.json — tất cả keys
+- [x] vi.json — tất cả keys
 
 ---
 
 ## PHASE 4 — SETTINGS EXTENSION
 
 ### 4.1 ROAS Threshold Setting
-**Status**: ⏳ PENDING  
+**Status**: ✅ DONE  
 **File**: `app/dashboard/settings/page.tsx` (edit existing)  
 **Ước tính**: ~1h
 
@@ -425,12 +425,12 @@ Phase 4 — Settings Extension [✅] 1/1  task  ← DONE
 | 4 | API: `/api/reports/daily` | `app/api/reports/daily/route.ts` | 3h | HIGH | ✅ DONE |
 | 5 | API: `/api/reports/sku` | `app/api/reports/sku/route.ts` | 2h | HIGH | ✅ DONE |
 | 6 | API: `/api/reports/store` | `app/api/reports/store/route.ts` | 2h | MEDIUM | ✅ DONE |
-| 7 | Component: `AlertsPanel` | `components/reports/AlertsPanel.tsx` | 4h | HIGH | ⏳ Phase 2 |
-| 8 | Component: `DailyReportTable` | `components/reports/DailyReportTable.tsx` | 3h | HIGH | ⏳ Phase 2 |
-| 9 | Component: `DailyDrilldownModal` | `components/reports/DailyDrilldownModal.tsx` | 2h | HIGH | ⏳ Phase 2 |
-| 10 | Component: `SKUReportTable` | `components/reports/SKUReportTable.tsx` | 3h | HIGH | ⏳ Phase 2 |
-| 11 | Component: `StoreComparisonTable` | `components/reports/StoreComparisonTable.tsx` | 2h | MEDIUM | ⏳ Phase 2 |
-| 12 | Component: `StoreTrendChart` | `components/reports/StoreTrendChart.tsx` | 2h | MEDIUM | ⏳ Phase 2 |
+| 7 | Component: `AlertsPanel` | `components/reports/AlertsPanel.tsx` | 4h | HIGH | ✅ DONE |
+| 8 | Component: `DailyReportTable` | `components/reports/DailyReportTable.tsx` | 3h | HIGH | ✅ DONE |
+| 9 | Component: `DailyDrilldownModal` | `components/reports/DailyDrilldownModal.tsx` | 2h | HIGH | ✅ DONE |
+| 10 | Component: `SKUReportTable` | `components/reports/SKUReportTable.tsx` | 3h | HIGH | ✅ DONE |
+| 11 | Component: `StoreComparisonTable` | `components/reports/StoreComparisonTable.tsx` | 2h | MEDIUM | ✅ DONE |
+| 12 | Component: `StoreTrendChart` | `components/reports/StoreTrendChart.tsx` | 2h | MEDIUM | ✅ DONE |
 | 13 | Page: Reports layout + tabs | `app/dashboard/reports/page.tsx` | 3h | HIGH | ✅ DONE |
 | 14 | Nav: DashboardNav update | `components/dashboard/DashboardNav.tsx` | 0.5h | HIGH | ✅ DONE |
 | 15 | i18n: en.json + vi.json | `messages/*.json` | 0.5h | HIGH | ✅ DONE |
