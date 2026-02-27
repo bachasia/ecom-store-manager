@@ -25,15 +25,14 @@ const ICON_SIZE = 14
 const GAP = 4
 
 function CustomYAxisTick(props: any) {
-  const { x, y, payload, data } = props
+  const { x, y, payload, storeMap } = props
   if (!payload) return null
 
-  const storeName: string = payload.value
-  const store = (data as StoreComparisonChartProps["data"]).find((d) => d.storeName === storeName)
+  // payload.value là storeId (unique), lookup name + platform từ Map
+  const store = (storeMap as Map<string, { storeName: string; platform: string }>).get(payload.value)
+  const storeName = store?.storeName ?? payload.value
   const iconUrl = store ? getPlatformIcon(store.platform) : null
 
-  // x là cạnh phải của YAxis, tức là điểm tiếp giáp với chart area
-  // Chúng ta vẽ từ x=0 ngược về bên trái
   return (
     <g transform={`translate(${x},${y})`}>
       {iconUrl ? (
@@ -75,6 +74,11 @@ function CustomYAxisTick(props: any) {
 export default function StoreComparisonChart({ data, loading = false }: StoreComparisonChartProps) {
   const t = useTranslations("chart")
   const tCommon = useTranslations("common")
+
+  // Map storeId → { storeName, platform } để tick lookup chính xác kể cả khi trùng tên
+  const storeMap = new Map(
+    data.map((d) => [d.storeId, { storeName: d.storeName, platform: d.platform }])
+  )
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -118,14 +122,15 @@ export default function StoreComparisonChart({ data, loading = false }: StoreCom
           />
           <YAxis
             type="category"
-            dataKey="storeName"
+            dataKey="storeId"
             width={YAXIS_WIDTH}
             stroke="#9ca3af"
-            tick={(props: any) => <CustomYAxisTick {...props} data={data} />}
+            tick={(props: any) => <CustomYAxisTick {...props} storeMap={storeMap} />}
           />
           <Legend wrapperStyle={{ fontSize: "12px" }} />
           <Tooltip
             formatter={(value: any, name: any) => [formatCurrency(Number(value)), String(name)]}
+            labelFormatter={(storeId: string) => storeMap.get(storeId)?.storeName ?? storeId}
             contentStyle={{
               backgroundColor: "white",
               border: "1px solid #e5e7eb",
