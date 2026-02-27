@@ -12,8 +12,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     # Không expose port ra ngoài — chỉ accessible nội bộ Docker network
     volumes:
-      - postgres_prod_data:/var/lib/postgresql/data
-      - ./backups:/backups
+      - ./data/postgres:/var/lib/postgresql/data
+      - ./data/backups:/backups
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 30s
@@ -31,7 +31,7 @@ services:
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     # Không expose port ra ngoài — chỉ accessible nội bộ Docker network
     volumes:
-      - redis_prod_data:/data
+      - ./data/redis:/data
     healthcheck:
       test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD} ping | grep PONG"]
       interval: 30s
@@ -46,7 +46,7 @@ services:
     container_name: dtc-storepilot
     restart: always
     ports:
-      - "3000:3000"
+      - "3200:3000"
     environment:
       - NODE_ENV=production
       - DATABASE_URL=${DATABASE_URL}
@@ -69,28 +69,6 @@ services:
     networks:
       - pnl-network
     command: sh -c "npx prisma migrate deploy && node server.js"
-
-  # Nginx Reverse Proxy (Optional)
-  nginx:
-    image: nginx:alpine
-    container_name: pnl-nginx-prod
-    restart: always
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./ssl:/etc/nginx/ssl:ro
-    depends_on:
-      - app
-    networks:
-      - pnl-network
-
-volumes:
-  postgres_prod_data:
-    driver: local
-  redis_prod_data:
-    driver: local
 
 networks:
   pnl-network:

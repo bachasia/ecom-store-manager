@@ -1,8 +1,8 @@
 # Production Dockerfile - Multi-stage build
-FROM node:20-bookworm-slim AS base
+FROM node:20-bookworm AS base
 
 # Install system dependencies required for Prisma and native modules
-RUN apt-get update && apt-get install -y --no-install-recommends openssl python3 make g++ && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y --no-install-recommends openssl python3 make g++ ca-certificates && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -18,19 +18,21 @@ FROM base AS builder
 
 ARG DATABASE_URL="postgresql://build:build@localhost:5432/build"
 ARG NEXTAUTH_URL="http://localhost:3000"
-ARG NEXTAUTH_SECRET="docker-build-secret"
-ARG ENCRYPTION_KEY="docker-build-encryption-key-32-bytes"
 
 ENV DATABASE_URL=$DATABASE_URL
 ENV NEXTAUTH_URL=$NEXTAUTH_URL
-ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
-ENV ENCRYPTION_KEY=$ENCRYPTION_KEY
+ENV NEXT_TELEMETRY_DISABLED=1
+ENV NODE_ENV=production
 
 # Re-copy package files to ensure latest lock file is used
 COPY package*.json ./
 
-# Install all dependencies (including dev)
-RUN npm ci
+# Install all dependencies (including dev + optional native bindings)
+RUN npm config set fetch-retries 5 \
+ && npm config set fetch-retry-mintimeout 20000 \
+ && npm config set fetch-retry-maxtimeout 120000 \
+ && npm ci --include=optional --no-audit --no-fund \
+ && node -e "const cp=require('child_process');const arch=process.arch;const nextVersion=require('./node_modules/next/package.json').version;const swcPkg=arch==='arm64'?'@next/swc-linux-arm64-gnu':'@next/swc-linux-x64-gnu';const lcPkg=arch==='arm64'?'lightningcss-linux-arm64-gnu':'lightningcss-linux-x64-gnu';const swcCorePkg=arch==='arm64'?'@swc/core-linux-arm64-gnu':'@swc/core-linux-x64-gnu';console.log('Ensuring',swcPkg+'@'+nextVersion,lcPkg,swcCorePkg);cp.execSync('npm i --no-save --no-audit --no-fund '+swcPkg+'@'+nextVersion+' '+lcPkg+' '+swcCorePkg,{stdio:'inherit'});cp.execSync('cd node_modules/next-intl && npm i --no-save --no-audit --no-fund '+swcCorePkg,{stdio:'inherit'})"
 
 # Copy application code
 COPY . .
@@ -39,25 +41,23 @@ COPY . .
 COPY prisma ./prisma/
 RUN npx prisma generate
 
-# Build Next.js application
-ENV NEXT_TELEMETRY_DISABLED 1
-ENV NODE_ENV production
-RUN npm run build
+# Build Next.js application (force webpack in Docker for stability)
+RUN NEXT_DISABLE_SWC_NATIVE_BINARY=1 npx next build --webpack
 
 # Production stage
-FROM node:20-bookworm-slim AS runner
+FROM node:20-bookworm AS runner
 
 WORKDIR /app
 
 # Install openssl for Prisma
 RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 
-ENV NODE_ENV production
-ENV NEXT_TELEMETRY_DISABLED 1
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
 # Create non-root user
 RUN addgroup --system --gid 1001 nodejs
-RUN adduser --system --uid 1001 nextjs
+RUN adduser --system --uid 1001 --ingroup nodejs nextjs
 
 # Copy necessary files from builder
 COPY --from=builder /app/public ./public
@@ -75,8 +75,8 @@ USER nextjs
 
 EXPOSE 3000
 
-ENV PORT 3000
-ENV HOSTNAME "0.0.0.0"
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
