@@ -6,6 +6,7 @@ import Papa from "papaparse"
 import { useTranslations } from "next-intl"
 import { createPortal } from "react-dom"
 import StoreSelect from "@/components/ui/store-select"
+import { useNotifier } from "@/components/ui/feedback-provider"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -123,6 +124,7 @@ function ProductImage({ src, name, size = "md" }: { src: string | null; name: st
 export default function ProductsPage() {
   const t = useTranslations("products")
   const tCommon = useTranslations("common")
+  const { success, error } = useNotifier()
   const tDashboard = useTranslations("dashboard")
 
   const LIMIT = 50
@@ -226,11 +228,12 @@ export default function ProductsPage() {
       if (res.ok) {
         setEditingVariant(null)
         fetchProducts()
+        success(t("updated"))
       } else {
         const data = await res.json()
-        alert(`❌ ${data.error}`)
+        error(data.error || t("error"))
       }
-    } catch (e) { alert(t("error")) }
+    } catch (e) { error(t("error")) }
   }
 
   const handleExport = async () => {
@@ -241,7 +244,7 @@ export default function ProductsPage() {
       if (search)        params.set("search", search)
       if (productFilter) params.set("filter", productFilter)
       const res = await fetch(`/api/products/export?${params}`)
-      if (!res.ok) { alert("Export failed"); return }
+      if (!res.ok) { error(t("exportFailed")); return }
       const blob = await res.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement("a")
@@ -250,7 +253,7 @@ export default function ProductsPage() {
       a.click()
       URL.revokeObjectURL(url)
     } catch (e) {
-      alert("Export failed")
+      error(t("exportFailed"))
     } finally {
       setExporting(false)
     }
@@ -613,6 +616,7 @@ export default function ProductsPage() {
           product={editingVariant}
           onClose={() => setEditingVariant(null)}
           onSave={handleSaveCOGS}
+          notifyError={error}
         />
       )}
 
@@ -622,6 +626,8 @@ export default function ProductsPage() {
           stores={stores}
           onClose={() => setShowBulkUpload(false)}
           onSuccess={() => { setShowBulkUpload(false); fetchProducts() }}
+          notifyError={error}
+          notifySuccess={success}
         />
       )}
     </div>
@@ -634,10 +640,12 @@ function EditCOGSModal({
   product,
   onClose,
   onSave,
+  notifyError,
 }: {
   product: { id: string; name: string; sku: string; baseCost: number }
   onClose: () => void
   onSave: (id: string, cost: number) => void
+  notifyError: (message: string) => void
 }) {
   const t = useTranslations("products")
   const [baseCost, setBaseCost] = useState(product.baseCost.toString())
@@ -645,7 +653,7 @@ function EditCOGSModal({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     const val = parseFloat(baseCost)
-    if (isNaN(val) || val < 0) { alert(t("invalidCogs")); return }
+    if (isNaN(val) || val < 0) { notifyError(t("invalidCogs")); return }
     onSave(product.id, val)
   }
 
@@ -687,10 +695,12 @@ function EditCOGSModal({
 
 // ── Bulk Upload Modal ─────────────────────────────────────────────────────────
 
-function BulkUploadModal({ stores, onClose, onSuccess }: {
+function BulkUploadModal({ stores, onClose, onSuccess, notifyError, notifySuccess }: {
   stores: Store[]
   onClose: () => void
   onSuccess: () => void
+  notifyError: (message: string) => void
+  notifySuccess: (message: string) => void
 }) {
   const t = useTranslations("products")
   const [selectedStore, setSelectedStore] = useState("")
@@ -699,7 +709,7 @@ function BulkUploadModal({ stores, onClose, onSuccess }: {
   const [result, setResult] = useState<any>(null)
 
   const handleUpload = async () => {
-    if (!selectedStore || !file) { alert(t("uploadError")); return }
+    if (!selectedStore || !file) { notifyError(t("uploadError")); return }
     setUploading(true)
     try {
       const text = await file.text()
@@ -708,7 +718,7 @@ function BulkUploadModal({ stores, onClose, onSuccess }: {
         .filter(r => r.sku && r.baseCost)
         .map(r => ({ sku: r.sku.trim(), baseCost: parseFloat(r.baseCost) }))
 
-      if (products.length === 0) { alert(t("noValidData")); setUploading(false); return }
+      if (products.length === 0) { notifyError(t("noValidData")); setUploading(false); return }
 
       const res = await fetch("/api/products/bulk-update", {
         method: "POST",
@@ -718,11 +728,12 @@ function BulkUploadModal({ stores, onClose, onSuccess }: {
       const data = await res.json()
       if (res.ok) {
         setResult(data)
+        notifySuccess(t("uploadSuccess", { updated: data.stats?.updated ?? 0 }))
         if (data.stats.updated > 0) setTimeout(() => onSuccess(), 2000)
       } else {
-        alert(`❌ ${data.error}`)
+        notifyError(data.error || t("uploadFailed"))
       }
-    } catch (e) { alert(t("uploadFailed")) }
+    } catch (e) { notifyError(t("uploadFailed")) }
     finally { setUploading(false) }
   }
 

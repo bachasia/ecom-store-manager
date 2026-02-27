@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { useTranslations } from "next-intl"
 import PlatformSelect from "@/components/ui/platform-select"
 import AutoSyncSettings from "@/components/stores/AutoSyncSettings"
+import { useNotifier } from "@/components/ui/feedback-provider"
 
 interface Store {
   id: string
@@ -234,6 +235,7 @@ function BackgroundSyncBadge({ jobs, onShow, onCancel }: BackgroundSyncBadgeProp
 // ─── Main Page ───────────────────────────────────────────────────────────────
 export default function StoresPage() {
   const t = useTranslations("stores")
+  const { success: notifySuccess, error: notifyError, confirm } = useNotifier()
   const [stores, setStores] = useState<Store[]>([])
   const [loading, setLoading] = useState(true)
   const [showAddForm, setShowAddForm] = useState(false)
@@ -414,50 +416,65 @@ export default function StoresPage() {
       const response = await fetch(`/api/stores/${id}/test`, { method: "POST" })
       const data = await response.json()
       if (!response.ok) {
-        alert(`❌ ${data.error || t("connectionError")}`)
+        notifyError(data.error || t("connectionError"))
         return
       }
       if (data.success) {
-        alert(`✅ ${data.message}`)
+        notifySuccess(data.message)
       } else {
-        alert(`❌ ${data.message}`)
+        notifyError(data.message)
       }
     } catch (error) {
       console.error("Error testing connection:", error)
-      alert(t("connectionError"))
+      notifyError(t("connectionError"))
     }
   }
 
   const handleClearData = async (store: Store) => {
     const count = (store._count?.products ?? 0) + (store._count?.orders ?? 0)
-    if (!confirm(t("confirmClearData", { name: store.name, count }))) return
+    const ok = await confirm({
+      title: t("clearData"),
+      message: t("confirmClearData", { name: store.name, count }),
+      confirmText: t("clearData"),
+      cancelText: t("cancel"),
+      tone: "danger",
+    })
+    if (!ok) return
     try {
       const response = await fetch(`/api/stores/${store.id}/data`, { method: "DELETE" })
       const data = await response.json()
       if (response.ok) {
-        alert(`✅ ${data.message}`)
+        notifySuccess(data.message)
         fetchStores()
       } else {
-        alert(`❌ ${data.error || t("clearDataError")}`)
+        notifyError(data.error || t("clearDataError"))
       }
     } catch (error) {
       console.error("Error clearing store data:", error)
-      alert(t("clearDataError"))
+      notifyError(t("clearDataError"))
     }
   }
 
   const handleDelete = async (id: string) => {
-    if (!confirm(t("confirmDelete"))) return
+    const ok = await confirm({
+      title: t("deleteStore"),
+      message: t("confirmDelete"),
+      confirmText: t("delete"),
+      cancelText: t("cancel"),
+      tone: "danger",
+    })
+    if (!ok) return
     try {
       const response = await fetch(`/api/stores/${id}`, { method: "DELETE" })
       if (response.ok) {
         fetchStores()
+        notifySuccess(t("success"))
       } else {
-        alert(t("cannotDelete"))
+        notifyError(t("cannotDelete"))
       }
     } catch (error) {
       console.error("Error deleting store:", error)
-      alert(t("deleteError"))
+      notifyError(t("deleteError"))
     }
   }
 

@@ -137,6 +137,7 @@
     "uploadError": "Please select store and CSV file",
     "noValidData": "No valid data found in CSV file",
     "uploadFailed": "An error occurred while uploading file",
+    "exportFailed": "Export failed",
     "uploadSuccess": "✅ Updated {updated} products",
     "skuNotFound": "SKU not found:",
     "selectStoreToBrowse": "Select a store to view products",
@@ -309,6 +310,7 @@
     "cancel": "Cancel",
     "fee": "Fee:",
     "edit": "Edit",
+    "delete": "Delete",
     "feeCalculation": "Transaction fee calculation",
     "feeFormula": "Transaction fee = (Order total × Fee %) + Fixed fee",
     "feeExample": "Example: $100 order with Stripe (2.9% + $0.30) = ($100 × 2.9%) + $0.30 = $3.20",
@@ -337,7 +339,15 @@
     "noPaymentGateways": "No payment gateways configured",
     "noPaymentGatewaysDesc": "Initialize default payment gateways to start fee mapping.",
     "initializeDefaultGateways": "Initialize default gateways",
-    "initializing": "Initializing..."
+    "initializing": "Initializing...",
+    "addGateway": "Add gateway",
+    "gatewayNamePlaceholder": "Gateway key (e.g. razorpay)",
+    "displayNamePlaceholder": "Display name",
+    "createGateway": "Create gateway",
+    "creating": "Creating...",
+    "gatewayCreated": "Gateway created successfully",
+    "gatewayDeleted": "Gateway deleted successfully",
+    "confirmDeleteGateway": "Are you sure you want to delete this gateway?"
   },
   "auth": {
     "login": "Login to DTC StorePilot",

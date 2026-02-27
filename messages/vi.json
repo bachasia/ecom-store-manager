@@ -136,6 +136,7 @@
     "uploadError": "Vui lòng chọn cửa hàng và file CSV",
     "noValidData": "Không tìm thấy dữ liệu hợp lệ trong file CSV",
     "uploadFailed": "Đã xảy ra lỗi khi upload file",
+    "exportFailed": "Xuất file thất bại",
     "uploadSuccess": "✅ Đã cập nhật {updated} sản phẩm",
     "skuNotFound": "SKU không tìm thấy:",
     "selectStoreToBrowse": "Chọn cửa hàng để xem sản phẩm",
@@ -307,6 +308,7 @@
     "cancel": "Hủy",
     "fee": "Phí:",
     "edit": "Chỉnh sửa",
+    "delete": "Xóa",
     "feeCalculation": "Cách tính phí giao dịch",
     "feeFormula": "Phí giao dịch = (Tổng đơn hàng × Phí %) + Phí cố định",
     "feeExample": "Ví dụ: Đơn hàng $100 với Stripe (2.9% + $0.30) = ($100 × 2.9%) + $0.30 = $3.20",
@@ -335,7 +337,15 @@
     "noPaymentGateways": "Chưa cấu hình cổng thanh toán nào",
     "noPaymentGatewaysDesc": "Khởi tạo cổng thanh toán mặc định để bắt đầu map phí giao dịch.",
     "initializeDefaultGateways": "Khởi tạo cổng mặc định",
-    "initializing": "Đang khởi tạo..."
+    "initializing": "Đang khởi tạo...",
+    "addGateway": "Thêm gateway",
+    "gatewayNamePlaceholder": "Mã gateway (vd: razorpay)",
+    "displayNamePlaceholder": "Tên hiển thị",
+    "createGateway": "Tạo gateway",
+    "creating": "Đang tạo...",
+    "gatewayCreated": "Tạo gateway thành công",
+    "gatewayDeleted": "Xóa gateway thành công",
+    "confirmDeleteGateway": "Bạn có chắc muốn xóa gateway này không?"
   },
   "auth": {
     "login": "Đăng nhập vào DTC StorePilot",

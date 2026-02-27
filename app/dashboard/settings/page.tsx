@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useTranslations } from "next-intl"
 import CustomSelect from "@/components/ui/custom-select"
+import { useNotifier } from "@/components/ui/feedback-provider"
 
 interface PaymentGateway {
   id: string
@@ -20,11 +21,14 @@ interface AlertSettings {
 
 export default function SettingsPage() {
   const t = useTranslations('settings')
+  const { success: notifySuccess, error: notifyError, confirm } = useNotifier()
   const [gateways, setGateways] = useState<PaymentGateway[]>([])
   const [stores, setStores] = useState<Array<{ id: string; name: string }>>([])
   const [selectedStoreByGateway, setSelectedStoreByGateway] = useState<Record<string, string>>( {})
   const [applyingGatewayId, setApplyingGatewayId] = useState<string | null>(null)
   const [initializingGateways, setInitializingGateways] = useState(false)
+  const [creatingGateway, setCreatingGateway] = useState(false)
+  const [showCreateGatewayForm, setShowCreateGatewayForm] = useState(false)
   const [timezone, setTimezone] = useState('UTC')
   const [timezoneMessage, setTimezoneMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -33,6 +37,14 @@ export default function SettingsPage() {
     matchKeywords: "",
     feePercentage: 0,
     feeFixed: 0,
+  })
+  const [createForm, setCreateForm] = useState({
+    name: "",
+    displayName: "",
+    matchKeywords: "",
+    feePercentage: 0,
+    feeFixed: 0,
+    isActive: true,
   })
 
   const [roasThreshold, setRoasThreshold] = useState<number>(1.0)
@@ -153,14 +165,15 @@ export default function SettingsPage() {
       })
       if (!response.ok) {
         setTimezoneMessage({ type: 'error', text: t('updateError') })
-        alert(t('updateError'))
+        notifyError(t('updateError'))
       } else {
         setTimezoneMessage({ type: 'success', text: t('timezoneSaved') })
+        notifySuccess(t('timezoneSaved'))
       }
     } catch (error) {
       console.error('Error saving timezone:', error)
       setTimezoneMessage({ type: 'error', text: t('updateError') })
-      alert(t('updateError'))
+      notifyError(t('updateError'))
     }
   }
 
@@ -187,6 +200,39 @@ export default function SettingsPage() {
     })
   }
 
+  const handleCreateGateway = async () => {
+    try {
+      setCreatingGateway(true)
+      const response = await fetch('/api/settings/gateways', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(createForm),
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        notifyError(data.error || t('updateError'))
+        return
+      }
+
+      setCreateForm({
+        name: '',
+        displayName: '',
+        matchKeywords: '',
+        feePercentage: 0,
+        feeFixed: 0,
+        isActive: true,
+      })
+      setShowCreateGatewayForm(false)
+      await fetchGateways()
+      notifySuccess(t('gatewayCreated'))
+    } catch (error) {
+      console.error('Error creating gateway:', error)
+      notifyError(t('updateError'))
+    } finally {
+      setCreatingGateway(false)
+    }
+  }
+
   const handleSave = async (id: string) => {
     try {
       const response = await fetch(`/api/settings/gateways/${id}`, {
@@ -200,12 +246,13 @@ export default function SettingsPage() {
       if (response.ok) {
         fetchGateways()
         setEditingId(null)
+        notifySuccess(t('timezoneSaved'))
       } else {
-        alert(t('updateError'))
+        notifyError(t('updateError'))
       }
     } catch (error) {
       console.error("Error updating gateway:", error)
-      alert(t('updateError'))
+      notifyError(t('updateError'))
     }
   }
 
@@ -227,6 +274,34 @@ export default function SettingsPage() {
     }
   }
 
+  const handleDeleteGateway = async (gateway: PaymentGateway) => {
+    const ok = await confirm({
+      title: t('delete'),
+      message: `${t('confirmDeleteGateway')} ${gateway.displayName}`,
+      confirmText: t('delete'),
+      cancelText: t('cancel'),
+      tone: 'danger',
+    })
+    if (!ok) return
+
+    try {
+      const response = await fetch(`/api/settings/gateways/${gateway.id}`, {
+        method: 'DELETE',
+      })
+      const data = await response.json()
+      if (!response.ok) {
+        notifyError(data.error || t('updateError'))
+        return
+      }
+
+      await fetchGateways()
+      notifySuccess(t('gatewayDeleted'))
+    } catch (error) {
+      console.error('Error deleting gateway:', error)
+      notifyError(t('updateError'))
+    }
+  }
+
   const handleApplyGateway = async (gatewayId: string) => {
     try {
       setApplyingGatewayId(gatewayId)
@@ -240,14 +315,14 @@ export default function SettingsPage() {
 
       const data = await response.json()
       if (!response.ok) {
-        alert(data.error || t('updateError'))
+        notifyError(data.error || t('updateError'))
         return
       }
 
-      alert(data.message || t('timezoneSaved'))
+      notifySuccess(data.message || t('timezoneSaved'))
     } catch (error) {
       console.error('Error applying gateway mapping:', error)
-      alert(t('updateError'))
+      notifyError(t('updateError'))
     } finally {
       setApplyingGatewayId(null)
     }
@@ -259,7 +334,7 @@ export default function SettingsPage() {
       const response = await fetch('/api/settings/gateways/initialize', { method: 'POST' })
       const data = await response.json()
       if (!response.ok) {
-        alert(data.error || t('updateError'))
+        notifyError(data.error || t('updateError'))
         return
       }
 
@@ -270,7 +345,7 @@ export default function SettingsPage() {
       }
     } catch (error) {
       console.error('Error initializing gateways:', error)
-      alert(t('updateError'))
+      notifyError(t('updateError'))
     } finally {
       setInitializingGateways(false)
     }
@@ -294,7 +369,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        <div className="px-6 py-5 border-b border-gray-100">
+        <div className="px-6 py-5">
           <h3 className="text-lg font-semibold text-gray-900">{t('defaultTimezone')}</h3>
           <p className="mt-1 text-sm text-gray-500">{t('timezoneDesc')}</p>
           <div className="mt-3 flex items-center gap-2">
@@ -319,12 +394,83 @@ export default function SettingsPage() {
             </p>
           )}
         </div>
+      </div>
 
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-6 py-5 border-b border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-900">{t('paymentGateways')}</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            {t('gatewayDesc')}
-          </p>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900">{t('paymentGateways')}</h3>
+              <p className="mt-1 text-sm text-gray-500">{t('gatewayDesc')}</p>
+            </div>
+            <button
+              onClick={() => setShowCreateGatewayForm((v) => !v)}
+              className="h-[38px] px-4 rounded-xl text-sm font-medium text-white bg-gradient-to-r from-emerald-600 to-emerald-500 hover:shadow-md transition-all"
+            >
+              {t('addGateway')}
+            </button>
+          </div>
+
+          {showCreateGatewayForm && (
+            <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <input
+                  type="text"
+                  value={createForm.name}
+                  onChange={(e) => setCreateForm((s) => ({ ...s, name: e.target.value.trim().toLowerCase().replace(/\s+/g, '_') }))}
+                  placeholder={t('gatewayNamePlaceholder')}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                />
+                <input
+                  type="text"
+                  value={createForm.displayName}
+                  onChange={(e) => setCreateForm((s) => ({ ...s, displayName: e.target.value }))}
+                  placeholder={t('displayNamePlaceholder')}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                />
+                <input
+                  type="text"
+                  value={createForm.matchKeywords}
+                  onChange={(e) => setCreateForm((s) => ({ ...s, matchKeywords: e.target.value }))}
+                  placeholder={t('aliasesPlaceholder')}
+                  className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                />
+                <div className="flex items-center gap-2">
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={createForm.feePercentage}
+                    onChange={(e) => setCreateForm((s) => ({ ...s, feePercentage: Number(e.target.value) || 0 }))}
+                    placeholder="2.9"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={createForm.feeFixed}
+                    onChange={(e) => setCreateForm((s) => ({ ...s, feeFixed: Number(e.target.value) || 0 }))}
+                    placeholder="0.30"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
+                  />
+                </div>
+              </div>
+              <div className="mt-3 flex items-center gap-2">
+                <button
+                  onClick={handleCreateGateway}
+                  disabled={creatingGateway}
+                  className="h-[36px] px-3 rounded-lg text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:shadow-md transition-all disabled:opacity-60"
+                >
+                  {creatingGateway ? t('creating') : t('createGateway')}
+                </button>
+                <button
+                  onClick={() => setShowCreateGatewayForm(false)}
+                  className="h-[36px] px-3 rounded-lg text-sm font-medium text-gray-700 bg-white border border-gray-200 hover:bg-gray-50 transition-colors"
+                >
+                  {t('cancel')}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="divide-y divide-gray-100">
@@ -428,6 +574,12 @@ export default function SettingsPage() {
                           className="text-sm font-medium text-indigo-600 hover:text-indigo-700"
                         >
                           {t('edit')}
+                        </button>
+                        <button
+                          onClick={() => handleDeleteGateway(gateway)}
+                          className="text-sm font-medium text-red-600 hover:text-red-700"
+                        >
+                          {t('delete')}
                         </button>
                       </div>
                     )}

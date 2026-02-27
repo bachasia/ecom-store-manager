@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl"
 import { parseFacebookAdsCSV } from "@/lib/parsers/facebook-ads"
 import { parseGoogleAdsCSV } from "@/lib/parsers/google-ads"
 import StoreSelect from "@/components/ui/store-select"
+import { useNotifier } from "@/components/ui/feedback-provider"
 
 interface Store {
   id: string
@@ -42,6 +43,7 @@ const defaultManualForm: ManualFormState = {
 
 export default function AdsPage() {
   const t = useTranslations("ads")
+  const { success: notifySuccess, error: notifyError } = useNotifier()
 
   // shared
   const [stores, setStores] = useState<Store[]>([])
@@ -103,7 +105,7 @@ export default function AdsPage() {
       setParsedData(parsed)
     } catch (error) {
       console.error("Error parsing file:", error)
-      alert(t("parseError"))
+      notifyError(t("parseError"))
     } finally {
       setLoading(false)
     }
@@ -124,15 +126,15 @@ export default function AdsPage() {
       const result = await response.json()
 
       if (response.ok) {
-        alert(`✅ ${result.message}`)
+        notifySuccess(result.message)
         setParsedData([])
         setFile(null)
       } else {
-        alert(`❌ ${result.error}`)
+        notifyError(result.error)
       }
     } catch (error) {
       console.error("Error importing:", error)
-      alert(t("importError"))
+      notifyError(t("importError"))
     } finally {
       setImporting(false)
     }
@@ -211,14 +213,14 @@ export default function AdsPage() {
       const result = await response.json()
 
       if (response.ok) {
-        alert(t("manualSaveSuccess", { count: manualRows.length }))
+        notifySuccess(t("manualSaveSuccess", { count: manualRows.length }))
         setManualRows([])
       } else {
-        alert(`❌ ${result.error}`)
+        notifyError(result.error)
       }
     } catch (error) {
       console.error("Error saving manual rows:", error)
-      alert(t("manualSaveError"))
+      notifyError(t("manualSaveError"))
     } finally {
       setSaving(false)
     }
