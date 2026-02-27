@@ -101,6 +101,11 @@ export default function DashboardNav({ userEmail }: { userEmail: string }) {
             </Link>
           )
         })}
+
+        {/* Language Switcher — ngay dưới Settings */}
+        <div className="pt-3">
+          <LanguageSwitcher />
+        </div>
       </nav>
 
       {/* Exchange Rate */}
@@ -109,8 +114,6 @@ export default function DashboardNav({ userEmail }: { userEmail: string }) {
       </div>
 
       <div className="border-t border-gray-100 p-4 space-y-3">
-        <LanguageSwitcher />
-
         {/* User Info */}
         <div className="flex items-center px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors duration-200">
           <div className="flex-shrink-0">
