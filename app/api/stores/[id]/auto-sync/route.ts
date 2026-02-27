@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 
-const MIN_INTERVAL = 15  // phút
+const MIN_INTERVAL = 5    // phút
 const MAX_INTERVAL = 1440 // 24h
 
 // PATCH /api/stores/[id]/auto-sync

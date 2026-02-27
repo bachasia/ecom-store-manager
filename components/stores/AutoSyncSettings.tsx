@@ -16,12 +16,15 @@ interface AutoSyncState {
 }
 
 const INTERVAL_OPTIONS = [
+  { value: 5,    label: "5 phút" },
   { value: 15,   label: "15 phút" },
   { value: 30,   label: "30 phút" },
   { value: 60,   label: "1 giờ" },
   { value: 120,  label: "2 giờ" },
+  { value: 180,  label: "3 giờ" },
   { value: 360,  label: "6 giờ" },
   { value: 720,  label: "12 giờ" },
+  { value: 1440, label: "24 giờ" },
 ]
 
 function formatDateTime(iso: string | null): string {
