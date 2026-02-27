@@ -187,7 +187,6 @@ export async function GET(req: Request) {
         data: Array.from(byCountry.entries())
           .map(([country, metrics]) => ({ country, ...metrics }))
           .sort((a, b) => b.revenue - a.revenue)
-          .slice(0, 10)
       }
     } else if (groupBy === "store") {
       const byStore = new Map<string, typeof ordersForCalc>()

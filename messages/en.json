@@ -60,7 +60,9 @@
     "transactionFees": "Transaction fees",
     "adCosts": "Advertising costs",
     "byNetProfit": "By net profit",
-    "revenueByCountry": "Revenue by country"
+    "revenueByCountry": "Revenue by country",
+    "country": "Country",
+    "orders": "Orders"
   },
   "topProducts": {
     "title": "Top Products",
@@ -137,8 +139,11 @@
     "uploadFailed": "An error occurred while uploading file",
     "uploadSuccess": "✅ Updated {updated} products",
     "skuNotFound": "SKU not found:",
-    "platformLabel": "Platform:",
-    "allPlatforms": "All",
+    "selectStoreToBrowse": "Select a store to view products",
+    "filterAll": "All products",
+    "filterNoCogs": "No COGS",
+    "filterHasSold": "Has sold",
+    "filterNoSold": "No sold",
     "total": "Total:",
     "updated": "Updated:",
     "notFoundCount": "Not found:",

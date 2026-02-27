@@ -60,7 +60,9 @@
     "transactionFees": "Phí giao dịch",
     "adCosts": "Chi phí quảng cáo",
     "byNetProfit": "Theo lợi nhuận ròng",
-    "revenueByCountry": "Doanh thu theo quốc gia"
+    "revenueByCountry": "Doanh thu theo quốc gia",
+    "country": "Quốc gia",
+    "orders": "Đơn hàng"
   },
   "topProducts": {
     "title": "Top Sản Phẩm",
@@ -136,8 +138,14 @@
     "uploadFailed": "Đã xảy ra lỗi khi upload file",
     "uploadSuccess": "✅ Đã cập nhật {updated} sản phẩm",
     "skuNotFound": "SKU không tìm thấy:",
-    "platformLabel": "Nền tảng:",
-    "allPlatforms": "Tất cả"
+    "selectStoreToBrowse": "Chọn cửa hàng để xem sản phẩm",
+    "filterAll": "Tất cả sản phẩm",
+    "filterNoCogs": "Chưa có COGS",
+    "filterHasSold": "Đã có đơn",
+    "filterNoSold": "Chưa có đơn",
+    "total": "Tổng:",
+    "notFoundCount": "Không tìm thấy:",
+    "errors": "Lỗi:"
   },
   "stores": {
     "title": "Quản Lý Cửa Hàng",

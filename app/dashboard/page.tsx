@@ -282,12 +282,8 @@ export default function DashboardPage() {
         <AdsRoasTrendChart data={chartData} loading={loading} />
         <StoreComparisonChart data={storeComparisonData} loading={loading} />
         <RevenueByUtmSourceChart data={utmSourceData} loading={loading} />
-        <RevenueByCountryChart data={countryData} loading={loading} />
-      </div>
-
-      {/* Top Products */}
-      <div className="w-full lg:w-1/2">
         <TopProducts products={topProducts} loading={loading} />
+        <RevenueByCountryChart data={countryData} loading={loading} />
       </div>
 
       {/* Getting Started Guide - Only show if no data */}

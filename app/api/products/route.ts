@@ -17,6 +17,7 @@ export async function GET(req: Request) {
     const storeId = searchParams.get("storeId")
     const platform = searchParams.get("platform")
     const search = searchParams.get("search")
+    const filter = searchParams.get("filter") // "no_cogs" | "has_sold" | "no_sold" | null
     const page = parseInt(searchParams.get("page") || "1")
     const limit = parseInt(searchParams.get("limit") || "50")
     const skip = (page - 1) * limit
@@ -53,6 +54,42 @@ export async function GET(req: Request) {
       ? Prisma.sql`AND (p."name" ILIKE ${likeParam} OR p."sku" ILIKE ${likeParam})`
       : Prisma.empty
 
+    // Filter: no_cogs → tất cả variants trong group đều có baseCost = 0
+    //         has_sold → group có ít nhất 1 orderItem
+    //         no_sold  → group không có orderItem nào
+    const filterSql =
+      filter === "no_cogs"
+        ? Prisma.sql`AND NOT EXISTS (
+            SELECT 1 FROM "Product" p2
+            WHERE p2."storeId" = p."storeId"
+              AND (
+                (p."parentExternalId" IS NOT NULL AND p2."parentExternalId" = p."parentExternalId")
+                OR (p."parentExternalId" IS NULL AND p2."id" = p."id")
+              )
+              AND p2."baseCost" > 0
+          )`
+        : filter === "has_sold"
+        ? Prisma.sql`AND EXISTS (
+            SELECT 1 FROM "Product" p2
+            INNER JOIN "OrderItem" oi ON oi."productId" = p2."id"
+            WHERE p2."storeId" = p."storeId"
+              AND (
+                (p."parentExternalId" IS NOT NULL AND p2."parentExternalId" = p."parentExternalId")
+                OR (p."parentExternalId" IS NULL AND p2."id" = p."id")
+              )
+          )`
+        : filter === "no_sold"
+        ? Prisma.sql`AND NOT EXISTS (
+            SELECT 1 FROM "Product" p2
+            INNER JOIN "OrderItem" oi ON oi."productId" = p2."id"
+            WHERE p2."storeId" = p."storeId"
+              AND (
+                (p."parentExternalId" IS NOT NULL AND p2."parentExternalId" = p."parentExternalId")
+                OR (p."parentExternalId" IS NULL AND p2."id" = p."id")
+              )
+          )`
+        : Prisma.empty
+
     const groupedSubquery = Prisma.sql`
       SELECT
         p."storeId" AS "storeId",
@@ -63,6 +100,7 @@ export async function GET(req: Request) {
       FROM "Product" p
       WHERE p."storeId" IN (${storeIdsSql})
       ${searchSql}
+      ${filterSql}
       GROUP BY
         p."storeId",
         p."parentExternalId",

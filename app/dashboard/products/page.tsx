@@ -1,7 +1,7 @@
 "use client"
 
 import { Fragment, useState, useEffect, useRef } from "react"
-import { Package, Search, Upload, Edit2, RefreshCw, ChevronDown, ChevronRight } from "lucide-react"
+import { Package, Search, Upload, Download, Edit2, RefreshCw, ChevronDown, ChevronRight } from "lucide-react"
 import Papa from "papaparse"
 import { useTranslations } from "next-intl"
 import { createPortal } from "react-dom"
@@ -125,25 +125,37 @@ export default function ProductsPage() {
   const tCommon = useTranslations("common")
   const tDashboard = useTranslations("dashboard")
 
+  const LIMIT = 50
+
   const [products, setProducts] = useState<ProductGroup[]>([])
   const [stores, setStores] = useState<Store[]>([])
   const [selectedStore, setSelectedStore] = useState("")
-  const [selectedPlatform, setSelectedPlatform] = useState("")
   const [searchInput, setSearchInput] = useState("")
   const [search, setSearch] = useState("")
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(false)
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set())
   const [editingVariant, setEditingVariant] = useState<{ id: string; name: string; sku: string; baseCost: number } | null>(null)
   const [showBulkUpload, setShowBulkUpload] = useState(false)
-  const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 0 })
+  const [page, setPage] = useState(1)
+  const [paginationMeta, setPaginationMeta] = useState({ total: 0, totalPages: 0 })
+  const [exporting, setExporting] = useState(false)
+  const [productFilter, setProductFilter] = useState<"" | "no_cogs" | "has_sold" | "no_sold">("")
   const fetchAbortRef = useRef<AbortController | null>(null)
 
   useEffect(() => { fetchStores() }, [])
-  useEffect(() => { fetchProducts() }, [selectedStore, selectedPlatform, search, pagination.page])
+  useEffect(() => {
+    if (!selectedStore) {
+      setProducts([])
+      setPaginationMeta({ total: 0, totalPages: 0 })
+      return
+    }
+    fetchProducts()
+  }, [selectedStore, search, page, productFilter])
 
   useEffect(() => {
     const id = setTimeout(() => {
       setSearch(searchInput)
+      setPage(1)
     }, 350)
     return () => clearTimeout(id)
   }, [searchInput])
@@ -158,7 +170,12 @@ export default function ProductsPage() {
     try {
       const res = await fetch("/api/stores")
       const data = await res.json()
-      if (res.ok) setStores(data.stores)
+      if (res.ok) {
+        setStores(data.stores)
+        if (data.stores.length > 0) {
+          setSelectedStore(data.stores[0].id)
+        }
+      }
     } catch (e) { console.error(e) }
   }
 
@@ -170,17 +187,17 @@ export default function ProductsPage() {
     setLoading(true)
     try {
       const params = new URLSearchParams({
-        page: pagination.page.toString(),
-        limit: pagination.limit.toString(),
-        ...(selectedStore && { storeId: selectedStore }),
-        ...(selectedPlatform && !selectedStore && { platform: selectedPlatform }),
+        page: page.toString(),
+        limit: LIMIT.toString(),
+        storeId: selectedStore,
         ...(search && { search }),
+        ...(productFilter && { filter: productFilter }),
       })
       const res = await fetch(`/api/products?${params}`, { signal: abortController.signal, cache: "no-store" })
       const data = await res.json()
       if (res.ok) {
         setProducts(data.products)
-        setPagination(data.pagination)
+        setPaginationMeta({ total: data.pagination.total, totalPages: data.pagination.totalPages })
       }
     } catch (e: any) {
       if (e?.name !== "AbortError") console.error(e)
@@ -216,6 +233,29 @@ export default function ProductsPage() {
     } catch (e) { alert(t("error")) }
   }
 
+  const handleExport = async () => {
+    if (!selectedStore || exporting) return
+    setExporting(true)
+    try {
+      const params = new URLSearchParams({ storeId: selectedStore })
+      if (search)        params.set("search", search)
+      if (productFilter) params.set("filter", productFilter)
+      const res = await fetch(`/api/products/export?${params}`)
+      if (!res.ok) { alert("Export failed"); return }
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = res.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1] ?? "products.csv"
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      alert("Export failed")
+    } finally {
+      setExporting(false)
+    }
+  }
+
   const formatCurrency = (value: number) =>
     new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 }).format(value)
 
@@ -236,67 +276,75 @@ export default function ProductsPage() {
           <h2 className="text-3xl font-bold text-gray-900">{t("title")}</h2>
           <p className="mt-1 text-sm text-gray-500">{t("subtitle")}</p>
         </div>
-        <button
-          onClick={() => setShowBulkUpload(true)}
-          className="inline-flex items-center px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all duration-200"
-        >
-          <Upload className="w-5 h-5 mr-2" />
-          Bulk Update COGS
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={handleExport}
+            disabled={!selectedStore || exporting}
+            className="inline-flex items-center px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-sm font-semibold text-gray-700 shadow-sm hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+          >
+            {exporting
+              ? <><RefreshCw className="w-4 h-4 mr-2 animate-spin" />Exporting...</>
+              : <><Download className="w-4 h-4 mr-2" />Export CSV</>
+            }
+          </button>
+          <button
+            onClick={() => setShowBulkUpload(true)}
+            className="inline-flex items-center px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all duration-200"
+          >
+            <Upload className="w-5 h-5 mr-2" />
+            Bulk Update COGS
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
-        <div className="flex items-center space-x-4">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+        <div className="flex items-center space-x-3">
+          <StoreSelect
+            value={selectedStore}
+            onChange={(v) => { setSelectedStore(v); setPage(1); setSearchInput(""); setSearch(""); setProductFilter("") }}
+            placeholder={t("selectStore")}
+            options={stores.map(s => ({ value: s.id, label: s.name, platform: s.platform }))}
+            className="w-52 shrink-0"
+          />
           <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-              <input
-                type="text"
-                placeholder={t("searchPlaceholder")}
-                value={searchInput}
-                onChange={(e) => { setSearchInput(e.target.value); setPagination(p => ({ ...p, page: 1 })) }}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-gray-200 text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-colors"
-              />
-            </div>
-          {stores.length > 0 && (
-            <StoreSelect
-              value={selectedStore}
-              onChange={(v) => { setSelectedStore(v); setSelectedPlatform(""); setPagination(p => ({ ...p, page: 1 })) }}
-              placeholder={tDashboard("allStores")}
-              options={stores.map(s => ({ value: s.id, label: s.name, platform: s.platform }))}
-              className="w-56"
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+            <input
+              type="text"
+              placeholder={t("searchPlaceholder")}
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              disabled={!selectedStore}
+              className="w-full h-[42px] pl-10 pr-4 rounded-xl border border-gray-200 text-sm text-gray-900 placeholder-gray-400 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             />
-          )}
-          <button onClick={fetchProducts} className="p-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors">
+          </div>
+          {/* Quick filter dropdown */}
+          <select
+            value={productFilter}
+            onChange={(e) => { setProductFilter(e.target.value as typeof productFilter); setPage(1) }}
+            disabled={!selectedStore}
+            className="h-[42px] rounded-xl border border-gray-200 bg-white px-3 pr-8 text-sm text-gray-700 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed shrink-0 appearance-none cursor-pointer"
+            style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236b7280' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat: "no-repeat", backgroundPosition: "right 10px center" }}
+          >
+            <option value="">{t("filterAll")}</option>
+            <option value="no_cogs">{t("filterNoCogs")}</option>
+            <option value="has_sold">{t("filterHasSold")}</option>
+            <option value="no_sold">{t("filterNoSold")}</option>
+          </select>
+          <button onClick={fetchProducts} className="p-2.5 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-colors shrink-0">
             <RefreshCw className="w-5 h-5" />
           </button>
         </div>
-
-        {!selectedStore && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 font-medium">{t("platformLabel")}</span>
-            {(["", "shopbase", "woocommerce"] as const).map((p) => (
-              <button
-                key={p}
-                onClick={() => { setSelectedPlatform(p); setPagination(prev => ({ ...prev, page: 1 })) }}
-                className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-xs font-medium border transition-colors ${
-                  selectedPlatform === p
-                    ? "bg-indigo-600 text-white border-indigo-600"
-                    : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50"
-                }`}
-              >
-                {p === "" && t("allPlatforms")}
-                {p === "shopbase" && <><img src="/platform/shopbase-logo32.png" className="w-3 h-3" />ShopBase</>}
-                {p === "woocommerce" && <><img src="/platform/woocommerce-logo32.png" className="w-3 h-3" />WooCommerce</>}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
 
       {/* Table */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-        {loading ? (
+        {!selectedStore ? (
+          <div className="p-16 text-center">
+            <Package className="mx-auto h-12 w-12 text-gray-300" />
+            <p className="mt-3 text-sm font-medium text-gray-500">{t("selectStoreToBrowse")}</p>
+          </div>
+        ) : loading ? (
           <div className="p-12 text-center">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
             <p className="mt-2 text-sm text-gray-600">{tCommon("loading")}</p>
@@ -529,32 +577,32 @@ export default function ProductsPage() {
             </div>
 
             {/* Pagination */}
-            {pagination.totalPages > 1 && (
-              <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
-                <div className="text-sm text-gray-500">
-                  {t("showing", { count: products.length, total: pagination.total })}
-                </div>
+            <div className="px-6 py-4 border-t border-gray-200 flex items-center justify-between">
+              <div className="text-sm text-gray-500">
+                {t("showing", { count: products.length, total: paginationMeta.total })}
+              </div>
+              {paginationMeta.totalPages > 1 && (
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => setPagination({ ...pagination, page: pagination.page - 1 })}
-                    disabled={pagination.page === 1}
+                    onClick={() => setPage(p => p - 1)}
+                    disabled={page === 1}
                     className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     {t("previous")}
                   </button>
                   <span className="text-sm text-gray-600">
-                    Page {pagination.page} / {pagination.totalPages}
+                    Page {page} / {paginationMeta.totalPages}
                   </span>
                   <button
-                    onClick={() => setPagination({ ...pagination, page: pagination.page + 1 })}
-                    disabled={pagination.page === pagination.totalPages}
+                    onClick={() => setPage(p => p + 1)}
+                    disabled={page === paginationMeta.totalPages}
                     className="px-3 py-1.5 rounded-lg border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                   >
                     {t("next")}
                   </button>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </>
         )}
       </div>
