@@ -48,8 +48,6 @@ Thumbs.db
 *.swo
 *~
 
-# Prisma
-prisma/migrations/**/migration.sql
 
 # Docker
 *.log
