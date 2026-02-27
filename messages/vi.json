@@ -331,7 +331,11 @@
     "allowRegistration": "Cho phép đăng ký tài khoản mới",
     "allowRegistrationDesc": "Khi tắt, chỉ tài khoản đã có mới có thể đăng nhập. Không ai có thể tự tạo tài khoản mới.",
     "errorGeneric": "Đã xảy ra lỗi",
-    "errorSavingSetting": "Đã xảy ra lỗi khi lưu cài đặt"
+    "errorSavingSetting": "Đã xảy ra lỗi khi lưu cài đặt",
+    "noPaymentGateways": "Chưa cấu hình cổng thanh toán nào",
+    "noPaymentGatewaysDesc": "Khởi tạo cổng thanh toán mặc định để bắt đầu map phí giao dịch.",
+    "initializeDefaultGateways": "Khởi tạo cổng mặc định",
+    "initializing": "Đang khởi tạo..."
   },
   "auth": {
     "login": "Đăng nhập vào DTC StorePilot",

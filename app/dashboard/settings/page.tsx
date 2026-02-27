@@ -24,6 +24,7 @@ export default function SettingsPage() {
   const [stores, setStores] = useState<Array<{ id: string; name: string }>>([])
   const [selectedStoreByGateway, setSelectedStoreByGateway] = useState<Record<string, string>>( {})
   const [applyingGatewayId, setApplyingGatewayId] = useState<string | null>(null)
+  const [initializingGateways, setInitializingGateways] = useState(false)
   const [timezone, setTimezone] = useState('UTC')
   const [timezoneMessage, setTimezoneMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [loading, setLoading] = useState(true)
@@ -252,6 +253,29 @@ export default function SettingsPage() {
     }
   }
 
+  const handleInitializeGateways = async () => {
+    try {
+      setInitializingGateways(true)
+      const response = await fetch('/api/settings/gateways/initialize', { method: 'POST' })
+      const data = await response.json()
+      if (!response.ok) {
+        alert(data.error || t('updateError'))
+        return
+      }
+
+      if (Array.isArray(data.gateways)) {
+        setGateways(data.gateways)
+      } else {
+        fetchGateways()
+      }
+    } catch (error) {
+      console.error('Error initializing gateways:', error)
+      alert(t('updateError'))
+    } finally {
+      setInitializingGateways(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -304,7 +328,21 @@ export default function SettingsPage() {
         </div>
 
         <div className="divide-y divide-gray-100">
-          {gateways.map((gateway) => (
+          {gateways.length === 0 ? (
+            <div className="px-6 py-8">
+              <div className="rounded-xl border border-dashed border-gray-300 bg-gray-50 p-5 text-center">
+                <p className="text-sm font-medium text-gray-900">{t('noPaymentGateways')}</p>
+                <p className="mt-1 text-xs text-gray-500">{t('noPaymentGatewaysDesc')}</p>
+                <button
+                  onClick={handleInitializeGateways}
+                  disabled={initializingGateways}
+                  className="mt-4 h-[38px] px-4 rounded-xl text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:shadow-md transition-all disabled:opacity-60"
+                >
+                  {initializingGateways ? t('initializing') : t('initializeDefaultGateways')}
+                </button>
+              </div>
+            </div>
+          ) : gateways.map((gateway) => (
             <div key={gateway.id} className="px-6 py-5 hover:bg-gray-50 transition-colors">
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-4 flex-1">

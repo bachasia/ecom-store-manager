@@ -333,7 +333,11 @@
     "allowRegistration": "Allow new account registration",
     "allowRegistrationDesc": "When disabled, only existing accounts can sign in. No one can self-register new accounts.",
     "errorGeneric": "Error",
-    "errorSavingSetting": "Error saving setting"
+    "errorSavingSetting": "Error saving setting",
+    "noPaymentGateways": "No payment gateways configured",
+    "noPaymentGatewaysDesc": "Initialize default payment gateways to start fee mapping.",
+    "initializeDefaultGateways": "Initialize default gateways",
+    "initializing": "Initializing..."
   },
   "auth": {
     "login": "Login to DTC StorePilot",
