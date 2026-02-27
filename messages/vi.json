@@ -318,7 +318,20 @@
     "alertSettingsDesc": "Cấu hình ngưỡng cho các cảnh báo hiệu suất",
     "roasThreshold": "Cảnh báo khi ROAS dưới",
     "roasThresholdSaved": "Đã lưu ngưỡng cảnh báo thành công",
-    "roasThresholdHint": "Cảnh báo chỉ kích hoạt với những ngày có chi phí quảng cáo > 0"
+    "roasThresholdHint": "Cảnh báo chỉ kích hoạt với những ngày có chi phí quảng cáo > 0",
+    "active": "Đang bật",
+    "inactive": "Đang tắt",
+    "aliases": "Bí danh",
+    "aliasesPlaceholder": "paypal,paypal-express",
+    "allStores": "Tất cả cửa hàng",
+    "applying": "Đang áp dụng...",
+    "applyToOrders": "Áp dụng cho đơn hàng",
+    "admin": "Quản trị",
+    "adminDesc": "Cài đặt quản trị hệ thống",
+    "allowRegistration": "Cho phép đăng ký tài khoản mới",
+    "allowRegistrationDesc": "Khi tắt, chỉ tài khoản đã có mới có thể đăng nhập. Không ai có thể tự tạo tài khoản mới.",
+    "errorGeneric": "Đã xảy ra lỗi",
+    "errorSavingSetting": "Đã xảy ra lỗi khi lưu cài đặt"
   },
   "auth": {
     "login": "Đăng nhập vào DTC StorePilot",

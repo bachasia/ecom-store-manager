@@ -71,14 +71,14 @@ export default function SettingsPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        setRegistrationMessage({ type: 'error', text: data.error || 'Error' })
+        setRegistrationMessage({ type: 'error', text: data.error || t('errorGeneric') })
       } else {
         setAllowRegistration(value)
         setRegistrationMessage({ type: 'success', text: data.message })
       }
     } catch (error) {
       console.error('Error saving registration setting:', error)
-      setRegistrationMessage({ type: 'error', text: 'Error saving setting' })
+      setRegistrationMessage({ type: 'error', text: t('errorSavingSetting') })
     } finally {
       setSavingRegistration(false)
     }
@@ -325,19 +325,19 @@ export default function SettingsPage() {
                             : "bg-gray-50 text-gray-600 border border-gray-200"
                         }`}
                       >
-                        {gateway.isActive ? "Active" : "Inactive"}
+                        {gateway.isActive ? t('active') : t('inactive')}
                       </button>
                     </div>
 
                     {editingId === gateway.id ? (
                       <div className="mt-3 flex items-center space-x-4">
                         <div className="flex items-center space-x-2 min-w-[280px]">
-                          <label className="text-sm text-gray-600">Aliases</label>
+                          <label className="text-sm text-gray-600">{t('aliases')}</label>
                           <input
                             type="text"
                             value={editForm.matchKeywords}
                             onChange={(e) => setEditForm({ ...editForm, matchKeywords: e.target.value })}
-                            placeholder="paypal,paypal-express"
+                            placeholder={t('aliasesPlaceholder')}
                             className="w-full px-3 py-1.5 rounded-lg border border-gray-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20"
                           />
                         </div>
@@ -383,7 +383,7 @@ export default function SettingsPage() {
                           <span className="font-semibold text-gray-900"> ${Number(gateway.feeFixed).toFixed(2)}</span>
                         </span>
                         {gateway.matchKeywords && (
-                          <span className="text-xs text-gray-500">Aliases: {gateway.matchKeywords}</span>
+                          <span className="text-xs text-gray-500">{t('aliases')}: {gateway.matchKeywords}</span>
                         )}
                         <button
                           onClick={() => handleEdit(gateway)}
@@ -401,7 +401,7 @@ export default function SettingsPage() {
                         onChange={(e) => setSelectedStoreByGateway((prev) => ({ ...prev, [gateway.id]: e.target.value }))}
                         className="px-2.5 py-1.5 rounded-lg border border-gray-200 text-xs bg-white text-gray-700"
                       >
-                        <option value="">All stores</option>
+                        <option value="">{t('allStores')}</option>
                         {stores.map((s) => (
                           <option key={s.id} value={s.id}>{s.name}</option>
                         ))}
@@ -411,7 +411,7 @@ export default function SettingsPage() {
                         disabled={applyingGatewayId === gateway.id}
                         className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-emerald-200 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 disabled:opacity-50"
                       >
-                        {applyingGatewayId === gateway.id ? 'Applying...' : 'Apply to orders'}
+                        {applyingGatewayId === gateway.id ? t('applying') : t('applyToOrders')}
                       </button>
                     </div>
                   </div>
@@ -461,17 +461,17 @@ export default function SettingsPage() {
       {/* Admin Settings */}
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-6 py-5 border-b border-gray-100">
-          <h3 className="text-lg font-semibold text-gray-900">Admin</h3>
+          <h3 className="text-lg font-semibold text-gray-900">{t('admin')}</h3>
           <p className="mt-1 text-sm text-gray-500">
-            Cài đặt quản trị hệ thống
+            {t('adminDesc')}
           </p>
         </div>
         <div className="px-6 py-5 space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-medium text-gray-900">Cho phép đăng ký tài khoản mới</p>
+              <p className="text-sm font-medium text-gray-900">{t('allowRegistration')}</p>
               <p className="text-xs text-gray-500 mt-0.5">
-                Khi tắt, chỉ tài khoản đã có mới có thể đăng nhập. Không ai có thể tự tạo tài khoản mới.
+                {t('allowRegistrationDesc')}
               </p>
             </div>
             <button
