@@ -99,7 +99,8 @@ export default function ReportsPage() {
   const fetchDaily = useCallback(async () => {
     setDailyLoading(true)
     try {
-      const res = await fetch(`/api/reports/daily?${buildParams()}`)
+      // drilldown=true: API trả sẵn stores per day, tránh on-demand fetch bị lỗi sai ngày
+      const res = await fetch(`/api/reports/daily?${buildParams()}&drilldown=true`)
       const json = await res.json()
       if (res.ok) setDailyData(json.days ?? [])
     } catch {}
@@ -116,9 +117,9 @@ export default function ReportsPage() {
           all: json.all ?? [],
           profitable: json.profitable ?? [],
           lossmaking: json.lossmaking ?? [],
-          total: (json.all ?? []).length,
-          profitableCount: (json.profitable ?? []).length,
-          lossmakingCount: (json.lossmaking ?? []).length,
+          total: json.total ?? (json.all ?? []).length,
+          profitableCount: json.profitableCount ?? (json.profitable ?? []).length,
+          lossmakingCount: json.lossmakingCount ?? (json.lossmaking ?? []).length,
         })
       }
     } catch {}
@@ -138,13 +139,11 @@ export default function ReportsPage() {
       if (resTotal.ok) setStoreComparison(jsonTotal.comparison ?? [])
       if (resDay.ok) {
         setStoreTrends(jsonDay.trends ?? [])
-        // Extract store metas from comparison data
-        const metas: StoreMeta[] = (jsonTotal.comparison ?? []).map((s: any) => ({
-          id: s.storeId,
-          name: s.storeName,
-          platform: s.platform,
+        // Ưu tiên store metadata từ jsonDay.stores (luôn có), fallback sang jsonTotal.comparison
+        const metaSource = jsonDay.stores ?? (jsonTotal.comparison ?? []).map((s: any) => ({
+          id: s.storeId, name: s.storeName, platform: s.platform,
         }))
-        setStoreMetas(metas)
+        setStoreMetas(metaSource)
       }
     } catch {}
     finally { setStoreLoading(false) }
@@ -163,7 +162,7 @@ export default function ReportsPage() {
     finally { setAlertsLoading(false) }
   }, [buildParams])
 
-  // Fetch when tab changes or filters change
+  // Fetch khi tab thay đổi hoặc filter thay đổi
   useEffect(() => {
     if (activeTab === "daily") fetchDaily()
     if (activeTab === "sku") fetchSku()
@@ -171,9 +170,9 @@ export default function ReportsPage() {
     if (activeTab === "alerts") fetchAlerts()
   }, [activeTab, dateRange, selectedStore])
 
-  // Always keep alert count fresh (background fetch)
+  // Background fetch alert count khi filter thay đổi (chỉ khi không ở tab alerts để tránh double fetch)
   useEffect(() => {
-    fetchAlerts()
+    if (activeTab !== "alerts") fetchAlerts()
   }, [dateRange, selectedStore])
 
   // ── Handlers ──────────────────────────────────────────────────────────────

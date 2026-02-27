@@ -88,8 +88,12 @@ export default function StoreComparisonTable({ data, loading = false }: StoreCom
 
   const sorted = useMemo(() => {
     return [...data].sort((a, b) => {
-      const av = a[sortField] ?? 0
-      const bv = b[sortField] ?? 0
+      const av = a[sortField]
+      const bv = b[sortField]
+      // null luôn đẩy xuống cuối bất kể chiều sort (tránh nhầm null ROAS = ROAS 0)
+      if (av == null && bv == null) return 0
+      if (av == null) return 1
+      if (bv == null) return -1
       return sortDir === "desc" ? (bv as number) - (av as number) : (av as number) - (bv as number)
     })
   }, [data, sortField, sortDir])

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react"
 import { X } from "lucide-react"
+import PlatformIcon from "@/components/ui/platform-icon"
 import {
   BarChart,
   Bar,
@@ -152,6 +153,7 @@ export default function DailyDrilldownModal({
                         <th className="px-3 py-2.5 text-right font-semibold text-gray-600">Revenue</th>
                         <th className="px-3 py-2.5 text-right font-semibold text-gray-600">COGS</th>
                         <th className="px-3 py-2.5 text-right font-semibold text-gray-600">Ads</th>
+                        <th className="px-3 py-2.5 text-right font-semibold text-gray-600">Tx Fees</th>
                         <th className="px-3 py-2.5 text-right font-semibold text-gray-600">Net Profit</th>
                         <th className="px-3 py-2.5 text-right font-semibold text-gray-600">Margin</th>
                         <th className="px-3 py-2.5 text-right font-semibold text-gray-600">ROAS</th>
@@ -166,6 +168,7 @@ export default function DailyDrilldownModal({
                                 className="h-2.5 w-2.5 rounded-full shrink-0"
                                 style={{ backgroundColor: COLORS[idx % COLORS.length] }}
                               />
+                              <PlatformIcon platform={store.platform} size={14} />
                               {store.storeName}
                             </span>
                           </td>
@@ -173,6 +176,7 @@ export default function DailyDrilldownModal({
                           <td className="px-3 py-2.5 text-right text-gray-900">{fmtFull.format(store.revenue)}</td>
                           <td className="px-3 py-2.5 text-right text-gray-500">{fmtFull.format(store.cogs)}</td>
                           <td className="px-3 py-2.5 text-right text-gray-500">{fmtFull.format(store.adsCost)}</td>
+                          <td className="px-3 py-2.5 text-right text-gray-500">{fmtFull.format(store.transactionFees)}</td>
                           <td className="px-3 py-2.5 text-right font-semibold">
                             <span className={store.netProfit < 0 ? "text-red-600" : "text-gray-900"}>
                               {fmtFull.format(store.netProfit)}

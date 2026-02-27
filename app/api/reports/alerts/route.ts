@@ -50,6 +50,7 @@ export async function GET(req: Request) {
         negativeROI: [],
         lowROAS: [],
         missingCOGS: [],
+        roasThreshold: DEFAULT_ROAS_THRESHOLD,
         summary: { negativeROIDays: 0, lowROASDays: 0, missingCOGSCount: 0 },
       })
     }
@@ -170,16 +171,6 @@ export async function GET(req: Request) {
       .sort((a, b) => a.roas - b.roas) // Lowest ROAS first
 
     // --- 3. Missing COGS (products with orders but baseCost = 0 or null) ---
-    const adsCostDateFilter: any = {}
-    if (startDate) {
-      adsCostDateFilter.gte = new Date(`${startDate}T00:00:00.000Z`)
-    }
-    if (endDate) {
-      const endExclusive = new Date(`${endDate}T00:00:00.000Z`)
-      endExclusive.setUTCDate(endExclusive.getUTCDate() + 1)
-      adsCostDateFilter.lt = endExclusive
-    }
-
     // Find products with baseCost = 0 that have OrderItems in this period
     const orderItemsWithMissingCOGS = await prisma.orderItem.findMany({
       where: {

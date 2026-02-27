@@ -18,6 +18,8 @@ export async function GET(req: Request) {
     const endDate = searchParams.get("endDate")
     // drilldown=true means include per-store breakdown inside each day row
     const drilldown = searchParams.get("drilldown") === "true"
+    // date=YYYY-MM-DD: when set, return only that specific day (used by on-demand drilldown)
+    const singleDate = searchParams.get("date")
 
     // --- Resolve accessible store IDs ---
     let storeIds: string[] = []
@@ -53,7 +55,13 @@ export async function GET(req: Request) {
       storeId: { in: storeIds },
       status: { in: ["completed", "processing", "paid", "authorized"] },
     }
-    if (startDate || endDate) {
+    // singleDate overrides startDate/endDate — fetch exactly one calendar day
+    if (singleDate) {
+      const dayStart = new Date(`${singleDate}T00:00:00.000Z`)
+      const dayEnd = new Date(`${singleDate}T00:00:00.000Z`)
+      dayEnd.setUTCDate(dayEnd.getUTCDate() + 1)
+      orderWhere.orderDate = { gte: dayStart, lt: dayEnd }
+    } else if (startDate || endDate) {
       orderWhere.orderDate = {}
       if (startDate) {
         orderWhere.orderDate.gte = new Date(`${startDate}T00:00:00.000Z`)
@@ -106,7 +114,8 @@ export async function GET(req: Request) {
     }
 
     const dayMap = new Map<DayKey, DayMetrics>()
-    // drilldown: dayStore map for per-store breakdown per day
+    // drilldown: indexed by date → storeId → StoreMetrics (O(1) lookup, not O(n²) filter)
+    const dayStoreIndex = new Map<DayKey, Map<StoreKey, StoreMetrics>>()
     const dayStoreMap = new Map<string, StoreMetrics>() // key: "date::storeId"
 
     for (const order of orders) {
@@ -140,8 +149,9 @@ export async function GET(req: Request) {
 
       // --- Per-store drilldown ---
       if (drilldown) {
-        const dsKey = `${date}::${order.storeId}`
-        const ds = dayStoreMap.get(dsKey) || {
+        if (!dayStoreIndex.has(date)) dayStoreIndex.set(date, new Map())
+        const storeMapForDay = dayStoreIndex.get(date)!
+        const ds = storeMapForDay.get(order.storeId) || {
           date,
           storeId: order.storeId,
           storeName: storeMap.get(order.storeId)?.name ?? "Unknown",
@@ -161,7 +171,7 @@ export async function GET(req: Request) {
         ds.transactionFees += txFees
         ds.grossProfit += gross
         ds.netProfit += net
-        dayStoreMap.set(dsKey, ds)
+        storeMapForDay.set(order.storeId, ds)
       }
     }
 
@@ -186,9 +196,8 @@ export async function GET(req: Request) {
         }
 
         if (drilldown) {
-          // Attach per-store breakdown for this day
-          const storeBreakdown = Array.from(dayStoreMap.values())
-            .filter((ds) => ds.date === day.date)
+          // O(1) lookup via dayStoreIndex instead of O(n) filter over all entries
+          const storeBreakdown = Array.from(dayStoreIndex.get(day.date)?.values() ?? [])
             .map((ds) => {
               const storeMargin =
                 ds.revenue > 0 ? (ds.netProfit / ds.revenue) * 100 : 0

@@ -127,7 +127,7 @@ function StoreSubRow({ store }: { store: StoreDrilldown }) {
         <MarginBadge value={store.profitMargin} />
       </td>
       <td className="px-3 py-2 text-right text-sm text-gray-500">
-        {store.roas !== null ? store.roas.toFixed(2) : "—"}
+        {store.roas != null ? store.roas.toFixed(2) : "—"}
       </td>
     </tr>
   )
@@ -153,6 +153,9 @@ export default function DailyReportTable({
       setExpanded(next)
       return
     }
+
+    // Guard: tránh double-fetch khi user click nhanh 2 lần
+    if (loadingDrilldown.has(date)) return
 
     // If we already have stores data in the row, use it
     if (preloadedStores && preloadedStores.length > 0) {
@@ -242,7 +245,7 @@ export default function DailyReportTable({
                     <MarginBadge value={row.profitMargin} />
                   </td>
                   <td className="px-3 py-3 text-right text-gray-600">
-                    {row.roas !== null ? row.roas.toFixed(2) : "—"}
+                    {row.roas != null ? row.roas.toFixed(2) : "—"}
                   </td>
                 </tr>
 
@@ -256,6 +259,13 @@ export default function DailyReportTable({
                 )}
 
                 {/* Per-store drilldown rows */}
+                {isExpanded && !isLoadingRow && storeRows.length === 0 && (
+                  <tr key={`${row.date}-empty`}>
+                    <td colSpan={10} className="py-2 pl-12 text-sm text-gray-400 italic">
+                      No store data for this day.
+                    </td>
+                  </tr>
+                )}
                 {isExpanded && !isLoadingRow && storeRows.map((store) => (
                   <StoreSubRow key={`${row.date}-${store.storeId}`} store={store} />
                 ))}

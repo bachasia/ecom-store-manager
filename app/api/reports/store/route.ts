@@ -169,7 +169,7 @@ export async function GET(req: Request) {
         .map(([period, storesData]) => {
           const storesObj: Record<
             string,
-            { revenue: number; netProfit: number; roas: number | null }
+            { revenue: number; netProfit: number; adsCost: number; roas: number | null }
           > = {}
           for (const [sid, metrics] of storesData.entries()) {
             const roas =
@@ -177,6 +177,7 @@ export async function GET(req: Request) {
             storesObj[sid] = {
               revenue: Math.round(metrics.revenue * 100) / 100,
               netProfit: Math.round(metrics.netProfit * 100) / 100,
+              adsCost: Math.round(metrics.adsCost * 100) / 100,
               roas: roas !== null ? Math.round(roas * 100) / 100 : null,
             }
           }

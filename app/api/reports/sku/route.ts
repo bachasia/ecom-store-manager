@@ -132,9 +132,13 @@ export async function GET(req: Request) {
       }
 
       const itemRevenue = Number(item.total)
-      const orderRevenue =
-        Number(item.order.total) - Number(item.order.refundAmount)
-      const proportion = orderRevenue > 0 ? itemRevenue / orderRevenue : 0
+      const orderTotal = Number(item.order.total)
+      const orderRevenue = orderTotal - Number(item.order.refundAmount)
+      // Tính proportion dựa trên tỷ lệ item/orderTotal (pre-refund), rồi scale theo refund
+      // Tránh proportion > 1 khi refund làm orderRevenue < itemRevenue
+      const proportion = orderTotal > 0
+        ? Math.min(itemRevenue / orderTotal, 1) * (orderRevenue > 0 ? orderRevenue / orderTotal : 0)
+        : 0
 
       agg.unitsSold += item.quantity
       agg.revenue += itemRevenue

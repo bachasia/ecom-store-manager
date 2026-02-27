@@ -295,6 +295,19 @@ export default function SKUReportTable({ data, loading = false }: SKUReportTable
           </div>
         )}
       </div>
+
+      {/* Pagination notice: hiển thị khi API slice data */}
+      {(() => {
+        const total = tab === "all" ? data.total : tab === "profitable" ? data.profitableCount : data.lossmakingCount
+        if (rows.length > 0 && rows.length < total) {
+          return (
+            <p className="text-xs text-gray-400 text-right">
+              Showing {rows.length} of {total} SKUs
+            </p>
+          )
+        }
+        return null
+      })()}
     </div>
   )
 }

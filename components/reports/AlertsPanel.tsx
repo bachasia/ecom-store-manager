@@ -272,7 +272,7 @@ export default function AlertsPanel({ data, loading = false, basePath = "/dashbo
                   <p className="text-sm font-semibold text-orange-600">{alert.roas.toFixed(2)}</p>
                 </div>
                 <Link
-                  href={`${basePath}/ads`}
+                  href={`${basePath}/ads?startDate=${alert.date}&endDate=${alert.date}${alert.storeId ? `&storeId=${alert.storeId}` : ""}`}
                   className="flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 transition-colors shrink-0"
                 >
                   View ads <ExternalLink className="h-3 w-3" />

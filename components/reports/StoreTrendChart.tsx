@@ -22,7 +22,7 @@ export interface StoreMeta {
 
 export interface TrendPoint {
   date: string
-  stores: Record<string, { revenue: number; netProfit: number; roas: number | null }>
+  stores: Record<string, { revenue: number; netProfit: number; adsCost: number; roas: number | null }>
 }
 
 interface StoreTrendChartProps {
@@ -93,7 +93,7 @@ export default function StoreTrendChart({ trends, stores, loading = false }: Sto
   }
 
   // Aggregate to monthly if granularity = month (trends from API may already be monthly)
-  const grouped = new Map<string, Record<string, { revenue: number; netProfit: number; roas: number | null; count: number }>>()
+  const grouped = new Map<string, Record<string, { revenue: number; netProfit: number; adsCost: number; count: number }>>()
 
   for (const point of trends) {
     const periodKey =
@@ -101,13 +101,10 @@ export default function StoreTrendChart({ trends, stores, loading = false }: Sto
 
     const bucket = grouped.get(periodKey) ?? {}
     for (const [storeId, vals] of Object.entries(point.stores)) {
-      const prev = bucket[storeId] ?? { revenue: 0, netProfit: 0, roas: null, count: 0 }
+      const prev = bucket[storeId] ?? { revenue: 0, netProfit: 0, adsCost: 0, count: 0 }
       prev.revenue += vals.revenue
       prev.netProfit += vals.netProfit
-      // ROAS: re-average as weighted when grouping (simplified: plain average here)
-      if (vals.roas !== null) {
-        prev.roas = ((prev.roas ?? 0) * prev.count + vals.roas) / (prev.count + 1)
-      }
+      prev.adsCost += vals.adsCost
       prev.count += 1
       bucket[storeId] = prev
     }
@@ -122,12 +119,14 @@ export default function StoreTrendChart({ trends, stores, loading = false }: Sto
       for (const store of stores) {
         const vals = storeBucket[store.id]
         if (vals) {
-          row[store.id] =
-            metric === "roas"
-              ? vals.roas !== null
-                ? Math.round(vals.roas * 100) / 100
-                : null
-              : Math.round((vals[metric] ?? 0) * 100) / 100
+          if (metric === "roas") {
+            // Tính ROAS từ revenue/adsCost tổng hợp — chính xác hơn arithmetic average
+            row[store.id] = vals.adsCost > 0
+              ? Math.round((vals.revenue / vals.adsCost) * 100) / 100
+              : null
+          } else {
+            row[store.id] = Math.round((vals[metric] ?? 0) * 100) / 100
+          }
         }
       }
       return row
@@ -135,8 +134,8 @@ export default function StoreTrendChart({ trends, stores, loading = false }: Sto
 
   const tickFormatter =
     metric === "roas"
-      ? (v: number) => v.toFixed(2)
-      : (v: number) => fmtShort.format(v)
+      ? (v: any) => typeof v === "number" ? v.toFixed(2) : ""
+      : (v: any) => typeof v === "number" ? fmtShort.format(v) : ""
 
   const tooltipFormatter =
     metric === "roas"
