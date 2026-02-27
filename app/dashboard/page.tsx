@@ -63,9 +63,14 @@ const getPresetRange = (preset: Exclude<DatePreset, 'custom'>) => {
     return { startDate: toYMD(start), endDate: toYMD(end) }
   }
 
-  const start = new Date(now.getFullYear() - 1, 0, 1)
-  const end = new Date(now.getFullYear() - 1, 11, 31)
-  return { startDate: toYMD(start), endDate: toYMD(end) }
+  if (preset === 'lastYear') {
+    const start = new Date(now.getFullYear() - 1, 0, 1)
+    const end = new Date(now.getFullYear() - 1, 11, 31)
+    return { startDate: toYMD(start), endDate: toYMD(end) }
+  }
+
+  // allTime
+  return { startDate: '', endDate: toYMD(now) }
 }
 
 export default function DashboardPage() {
@@ -115,49 +120,13 @@ export default function DashboardPage() {
   const fetchDashboardData = async () => {
     setLoading(true)
     try {
-      // Fetch aggregate P&L
-      const plParams = new URLSearchParams({
+      const base = {
         ...(selectedStore && { storeId: selectedStore }),
         startDate: dateRange.startDate,
         endDate: dateRange.endDate,
-        groupBy: 'total'
-      })
-      const plResponse = await fetch(`/api/pnl?${plParams}`)
-      const plResult = await plResponse.json()
-      setPlData(plResult)
+      }
 
-      // Fetch daily P&L for charts
-      const chartParams = new URLSearchParams({
-        ...(selectedStore && { storeId: selectedStore }),
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-        groupBy: 'day'
-      })
-      const chartResponse = await fetch(`/api/pnl?${chartParams}`)
-      const chartResult = await chartResponse.json()
-      setChartData(chartResult.data || [])
-
-      // Fetch store comparison
-      const storeParams = new URLSearchParams({
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-        groupBy: 'store'
-      })
-      const storeResponse = await fetch(`/api/pnl?${storeParams}`)
-      const storeResult = await storeResponse.json()
-      setStoreComparisonData(storeResult.data || [])
-
-      // Fetch revenue by UTM source
-      const utmParams = new URLSearchParams({
-        ...(selectedStore && { storeId: selectedStore }),
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-        groupBy: 'utmSource'
-      })
-      const utmResponse = await fetch(`/api/pnl?${utmParams}`)
-      const utmResult = await utmResponse.json()
-      setUtmSourceData(utmResult.data || [])
-
+      // Tính period trước để fetch song song
       const currentStart = new Date(dateRange.startDate)
       const currentEnd = new Date(dateRange.endDate)
       const dayMs = 24 * 60 * 60 * 1000
@@ -165,14 +134,32 @@ export default function DashboardPage() {
       const prevEnd = new Date(currentStart.getTime() - dayMs)
       const prevStart = new Date(prevEnd.getTime() - (periodDays - 1) * dayMs)
 
-      const prevParams = new URLSearchParams({
-        ...(selectedStore && { storeId: selectedStore }),
-        startDate: prevStart.toISOString().split('T')[0],
-        endDate: prevEnd.toISOString().split('T')[0],
-        groupBy: 'total'
-      })
-      const prevResponse = await fetch(`/api/pnl?${prevParams}`)
-      const prevResult = await prevResponse.json()
+      const buildUrl = (params: Record<string, string>) =>
+        `/api/pnl?${new URLSearchParams(params)}`
+
+      // Tất cả 7 requests chạy song song
+      const [plResult, chartResult, storeResult, utmResult, prevResult, countryResult, productsResult] =
+        await Promise.all([
+          fetch(buildUrl({ ...base, groupBy: 'total' })).then(r => r.json()),
+          fetch(buildUrl({ ...base, groupBy: 'day' })).then(r => r.json()),
+          fetch(buildUrl({ startDate: dateRange.startDate, endDate: dateRange.endDate, groupBy: 'store' })).then(r => r.json()),
+          fetch(buildUrl({ ...base, groupBy: 'utmSource' })).then(r => r.json()),
+          fetch(buildUrl({
+            ...(selectedStore && { storeId: selectedStore }),
+            startDate: prevStart.toISOString().split('T')[0],
+            endDate: prevEnd.toISOString().split('T')[0],
+            groupBy: 'total'
+          })).then(r => r.json()),
+          fetch(buildUrl({ ...base, groupBy: 'country' })).then(r => r.json()),
+          fetch(`/api/pnl/products?${new URLSearchParams({ ...base, limit: '10' })}`).then(r => r.json()),
+        ])
+
+      setPlData(plResult)
+      setChartData(chartResult.data || [])
+      setStoreComparisonData(storeResult.data || [])
+      setUtmSourceData(utmResult.data || [])
+      setCountryData(countryResult.data || [])
+      setTopProducts(productsResult.products || [])
 
       const calcPct = (current: number, previous: number): number | null => {
         if (!Number.isFinite(previous) || previous === 0) return null
@@ -188,28 +175,6 @@ export default function DashboardPage() {
       const currentRoas = plResult?.roas === null || plResult?.roas === undefined ? null : Number(plResult.roas)
       const prevRoas = prevResult?.roas === null || prevResult?.roas === undefined ? null : Number(prevResult.roas)
       setRoasChangePct(currentRoas === null || prevRoas === null ? null : calcPct(currentRoas, prevRoas))
-
-      // Fetch revenue by country
-      const countryParams = new URLSearchParams({
-        ...(selectedStore && { storeId: selectedStore }),
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-        groupBy: 'country'
-      })
-      const countryResponse = await fetch(`/api/pnl?${countryParams}`)
-      const countryResult = await countryResponse.json()
-      setCountryData(countryResult.data || [])
-
-      // Fetch top products
-      const productsParams = new URLSearchParams({
-        ...(selectedStore && { storeId: selectedStore }),
-        startDate: dateRange.startDate,
-        endDate: dateRange.endDate,
-        limit: '10'
-      })
-      const productsResponse = await fetch(`/api/pnl/products?${productsParams}`)
-      const productsResult = await productsResponse.json()
-      setTopProducts(productsResult.products || [])
 
     } catch (error) {
       console.error("Error fetching dashboard data:", error)
@@ -261,6 +226,7 @@ export default function DashboardPage() {
                 { value: 'last30', label: t('last30Days') },
                 { value: 'lastMonth', label: t('lastMonth') },
                 { value: 'lastYear', label: t('lastYear') },
+                { value: 'allTime', label: t('allTime') },
                 { value: 'custom', label: t('custom') },
               ]}
             />

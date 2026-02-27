@@ -102,7 +102,7 @@ export class ShopbaseClient {
       headers: {
         'Content-Type': 'application/json',
       },
-      timeout: 30000,
+      timeout: 60000,
     })
   }
 
@@ -206,6 +206,33 @@ export class ShopbaseClient {
     }
 
     return allProducts
+  }
+
+  /**
+   * Stream products page by page — không load toàn bộ vào RAM.
+   * Dùng cho store có nhiều sản phẩm để tránh timeout và OOM.
+   */
+  async streamAllProducts(options: {
+    onPage: (products: ShopbaseProduct[], pageInfo: { page: number; fetched: number }) => Promise<void>
+    onProgress?: (fetched: number) => void
+    pageSize?: number
+  }): Promise<{ totalFetched: number }> {
+    const PAGE_SIZE = options.pageSize ?? 50
+    let page = 1
+    let totalFetched = 0
+
+    while (true) {
+      const products = await this.getProducts({ page, limit: PAGE_SIZE })
+      totalFetched += products.length
+
+      await options.onPage(products, { page, fetched: totalFetched })
+      options.onProgress?.(totalFetched)
+
+      if (products.length < PAGE_SIZE) break
+      page++
+    }
+
+    return { totalFetched }
   }
 
   async getAllOrders(params: {

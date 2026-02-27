@@ -7,8 +7,8 @@ import './globals.css'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'P&L Dashboard',
-  description: 'Profit and loss management dashboard for e-commerce stores',
+  title: 'DTC StorePilot',
+  description: 'DTC StorePilot for multi-store e-commerce operations and profitability insights',
 }
 
 export default async function RootLayout({

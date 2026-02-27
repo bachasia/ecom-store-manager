@@ -43,6 +43,7 @@
     "last30Days": "Last 30 days",
     "lastMonth": "Last month",
     "lastYear": "Last year",
+    "allTime": "All time",
     "custom": "Custom"
   },
   "chart": {
@@ -290,7 +291,7 @@
     "roasThresholdHint": "Alerts will trigger only for days with ad spend > 0"
   },
   "auth": {
-    "login": "Login to P&L Dashboard",
+    "login": "Login to DTC StorePilot",
     "register": "Register account",
     "or": "Or",
     "loginLink": "login if you already have an account",

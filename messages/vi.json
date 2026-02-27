@@ -43,6 +43,7 @@
     "last30Days": "30 ngày gần nhất",
     "lastMonth": "Tháng trước",
     "lastYear": "Năm trước",
+    "allTime": "Tất cả",
     "custom": "Tùy chọn"
   },
   "chart": {
@@ -285,7 +286,7 @@
     "roasThresholdHint": "Cảnh báo chỉ kích hoạt với những ngày có chi phí quảng cáo > 0"
   },
   "auth": {
-    "login": "Đăng nhập vào P&L Dashboard",
+    "login": "Đăng nhập vào DTC StorePilot",
     "register": "Đăng ký tài khoản",
     "or": "Hoặc",
     "loginLink": "đăng nhập nếu đã có tài khoản",

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, Fragment } from "react"
 import { ChevronDown, ChevronRight, TrendingUp, TrendingDown, Minus } from "lucide-react"
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -206,9 +206,8 @@ export default function DailyReportTable({
             const storeRows = drilldownCache[row.date] ?? row.stores ?? []
 
             return (
-              <>
+              <Fragment key={row.date}>
                 <tr
-                  key={row.date}
                   className={`transition-colors hover:bg-gray-50 ${rowBg(row.profitMargin)} ${canExpand ? "cursor-pointer" : ""}`}
                   onClick={() => canExpand && toggleRow(row.date, row.stores)}
                 >
@@ -254,7 +253,7 @@ export default function DailyReportTable({
                 {isExpanded && !isLoadingRow && storeRows.map((store) => (
                   <StoreSubRow key={`${row.date}-${store.storeId}`} store={store} />
                 ))}
-              </>
+              </Fragment>
             )
           })}
         </tbody>

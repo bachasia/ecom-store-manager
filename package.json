@@ -53,5 +53,14 @@
     "prisma": "^5.19.1",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.21.0"
+  },
+  "optionalDependencies": {
+    "@next/swc-linux-arm64-gnu": "^16.1.6",
+    "@next/swc-linux-arm64-musl": "^16.1.6",
+    "@next/swc-linux-x64-gnu": "^16.1.6",
+    "@next/swc-linux-x64-musl": "^16.1.6",
+    "@parcel/watcher-linux-arm64-glibc": "^2.5.6",
+    "@parcel/watcher-linux-arm64-musl": "^2.5.6",
+    "@parcel/watcher-linux-x64-glibc": "^2.5.6"
   }
 }

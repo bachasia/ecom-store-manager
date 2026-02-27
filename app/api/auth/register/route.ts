@@ -11,6 +11,23 @@ const registerSchema = z.object({
 
 export async function POST(req: Request) {
   try {
+    // Nếu chưa có user nào trong DB → cho phép đăng ký user đầu tiên (bootstrap)
+    const userCount = await prisma.user.count()
+    if (userCount === 0) {
+      // Bỏ qua setting, tiếp tục tạo user đầu tiên
+    } else {
+      // Kiểm tra setting cho phép đăng ký không (mặc định: tắt)
+      const registrationSetting = await prisma.appSetting.findUnique({
+        where: { key: "allow_registration" }
+      })
+      if (registrationSetting?.value !== "true") {
+        return NextResponse.json(
+          { error: "Registration is currently disabled. Please contact the administrator." },
+          { status: 403 }
+        )
+      }
+    }
+
     const body = await req.json()
     const { email, password, name } = registerSchema.parse(body)
 

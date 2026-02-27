@@ -92,13 +92,14 @@ export async function POST(
       )
     }
 
+    let productsCreated = 0
+    let productsUpdated = 0
+    let productsSkipped = 0
+    let productsDeactivated = 0
+    let skuWarnings: string[] = []
+    let skipDeactivate = false  // true khi incremental sync — không biết product nào bị xóa
+
     try {
-      let productsCreated = 0
-      let productsUpdated = 0
-      let productsSkipped = 0
-      let productsDeactivated = 0
-      let skuWarnings: string[] = []
-      let skipDeactivate = false  // true khi incremental sync — không biết product nào bị xóa
 
       // ─── Helper: kiểm tra cancel flag từ DB ──────────────────────────────
       const isCancelled = async (): Promise<boolean> => {
@@ -187,37 +188,46 @@ export async function POST(
         if (!store.apiSecret) throw new Error('API Password is required for ShopBase')
 
         const client = new ShopbaseClient(store.apiUrl, store.apiKey, store.apiSecret)
-        const products = await client.getAllProducts()
 
-        for (const product of products) {
-          if (await isCancelled()) throw new CancelledError()
+        // Stream từng trang thay vì load tất cả vào RAM (tránh OOM và timeout)
+        await client.streamAllProducts({
+          onPage: async (products, { page, fetched }) => {
+            console.info(`[sync:products][shopbase] page=${page} fetched=${fetched} db_written=${productsCreated + productsUpdated + productsSkipped}`)
 
-          // Build map: imageId → src để lookup nhanh
-          const imageMap = new Map(product.images.map(img => [img.id, img.src]))
-          const firstImageSrc = product.images[0]?.src ?? null
+            for (const product of products) {
+              if (await isCancelled()) throw new CancelledError()
 
-          for (const variant of product.variants) {
-            const sku = variant.sku?.trim() || `sb-variant-${variant.id}`
-            const variantName = variant.title && variant.title !== 'Default Title'
-              ? variant.title
-              : null
+              // Build map: imageId → src để lookup nhanh
+              const imageMap = new Map(product.images.map(img => [img.id, img.src]))
+              const firstImageSrc = product.images[0]?.src ?? null
 
-            // Ảnh của variant: dùng image_id nếu có, fallback về ảnh đầu tiên của product
-            const imageUrl = variant.image_id
-              ? (imageMap.get(variant.image_id) ?? firstImageSrc)
-              : firstImageSrc
+              for (const variant of product.variants) {
+                const sku = variant.sku?.trim() || `sb-variant-${variant.id}`
+                const variantName = variant.title && variant.title !== 'Default Title'
+                  ? variant.title
+                  : null
 
-            await upsertProduct({
-              externalId: variant.id.toString(),
-              parentExternalId: product.id.toString(),
-              sku,
-              name: product.title,
-              variantName,
-              price: parseFloat(variant.price) || 0,
-              imageUrl,
-            })
-          }
-        }
+                // Ảnh của variant: dùng image_id nếu có, fallback về ảnh đầu tiên của product
+                const imageUrl = variant.image_id
+                  ? (imageMap.get(variant.image_id) ?? firstImageSrc)
+                  : firstImageSrc
+
+                await upsertProduct({
+                  externalId: variant.id.toString(),
+                  parentExternalId: product.id.toString(),
+                  sku,
+                  name: product.title,
+                  variantName,
+                  price: parseFloat(variant.price) || 0,
+                  imageUrl,
+                })
+              }
+            }
+          },
+          onProgress: (fetched) => {
+            console.info(`[sync:products][shopbase] total fetched=${fetched}`)
+          },
+        })
 
       // ─── WooCommerce ─────────────────────────────────────────────────────
       } else if (store.platform === 'woocommerce') {
@@ -448,17 +458,25 @@ export async function POST(
 
     } catch (error: any) {
       if (error instanceof CancelledError) {
+        const totalProcessedSoFar = productsCreated + productsUpdated + productsSkipped
         if (syncLog) {
           await prisma.syncLog.update({
             where: { id: syncLog.id },
-            data: { status: 'cancelled', errorMessage: 'Cancelled by user', completedAt: new Date() }
+            data: {
+              status: 'cancelled',
+              errorMessage: 'Cancelled by user',
+              completedAt: new Date(),
+              recordsProcessed: totalProcessedSoFar,
+              recordsCreated: productsCreated,
+              recordsUpdated: productsUpdated,
+            }
           })
         }
         await prisma.store.update({
           where: { id: store.id },
           data: { lastSyncStatus: 'cancelled', lastSyncError: 'Cancelled by user' }
         })
-        return NextResponse.json({ success: false, cancelled: true, message: 'Sync đã bị dừng' })
+        return NextResponse.json({ success: false, cancelled: true, message: `Sync đã bị dừng (đã xử lý ${totalProcessedSoFar} sản phẩm)` })
       }
 
       console.error("Product sync error:", error)

@@ -258,6 +258,7 @@ export default function ReportsPage() {
     { value: "last30" as DatePreset, label: tDash("last30Days") },
     { value: "lastMonth" as DatePreset, label: tDash("lastMonth") },
     { value: "lastYear" as DatePreset, label: tDash("lastYear") },
+    { value: "allTime" as DatePreset, label: tDash("allTime") },
   ]
 
   const storeOptions = [

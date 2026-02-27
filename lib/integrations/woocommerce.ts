@@ -250,6 +250,37 @@ export class WooCommerceClient {
     return allOrders
   }
 
+  /**
+   * Stream orders page by page — không load toàn bộ vào RAM.
+   * Dùng cho store có nhiều orders để tránh OOM và timeout.
+   */
+  async streamAllOrders(params: {
+    after?: string
+    before?: string
+    modifiedAfter?: string
+    onPage: (orders: WooCommerceOrder[], pageInfo: { page: number; fetched: number }) => Promise<void>
+    onProgress?: (fetched: number) => void
+  }): Promise<{ totalFetched: number }> {
+    const PAGE_SIZE = 100
+    let page = 1
+    let totalFetched = 0
+
+    while (true) {
+      const orders = await this.getOrders({ after: params.after, before: params.before, modifiedAfter: params.modifiedAfter, page, perPage: PAGE_SIZE })
+      totalFetched += orders.length
+
+      await params.onPage(orders, { page, fetched: totalFetched })
+      params.onProgress?.(totalFetched)
+
+      if (orders.length < PAGE_SIZE) break
+      page++
+
+      if (this.requestDelayMs > 0) await sleep(this.requestDelayMs)
+    }
+
+    return { totalFetched }
+  }
+
   // ─── Products ───────────────────────────────────────────────────────────────
 
   async getProducts(params: {

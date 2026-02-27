@@ -1,8 +1,8 @@
 # Production Dockerfile - Multi-stage build
-FROM node:20-alpine AS base
+FROM node:20-bookworm-slim AS base
 
-# Install dependencies for Prisma
-RUN apk add --no-cache openssl libc6-compat
+# Install system dependencies required for Prisma and native modules
+RUN apt-get update && apt-get install -y --no-install-recommends openssl python3 make g++ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -26,6 +26,9 @@ ENV NEXTAUTH_URL=$NEXTAUTH_URL
 ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
 ENV ENCRYPTION_KEY=$ENCRYPTION_KEY
 
+# Re-copy package files to ensure latest lock file is used
+COPY package*.json ./
+
 # Install all dependencies (including dev)
 RUN npm ci
 
@@ -42,12 +45,12 @@ ENV NODE_ENV production
 RUN npm run build
 
 # Production stage
-FROM node:20-alpine AS runner
+FROM node:20-bookworm-slim AS runner
 
 WORKDIR /app
 
 # Install openssl for Prisma
-RUN apk add --no-cache openssl
+RUN apt-get update && apt-get install -y --no-install-recommends openssl && rm -rf /var/lib/apt/lists/*
 
 ENV NODE_ENV production
 ENV NEXT_TELEMETRY_DISABLED 1

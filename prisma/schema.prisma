@@ -165,6 +165,8 @@ model Order {
   @@index([storeId])
   @@index([orderDate])
   @@index([status])
+  @@index([storeId, orderDate])         // report queries filter by store + date range
+  @@index([storeId, status, orderDate]) // report queries filter by store + status + date
 }
 
 // Order Line Items

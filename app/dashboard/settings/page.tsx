@@ -38,12 +38,51 @@ export default function SettingsPage() {
   const [roasThresholdMessage, setRoasThresholdMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [savingRoas, setSavingRoas] = useState(false)
 
+  const [allowRegistration, setAllowRegistration] = useState(false)
+  const [savingRegistration, setSavingRegistration] = useState(false)
+  const [registrationMessage, setRegistrationMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+
   useEffect(() => {
     fetchTimezone()
     fetchGateways()
     fetchStores()
     fetchAlertSettings()
+    fetchRegistrationSetting()
   }, [])
+
+  const fetchRegistrationSetting = async () => {
+    try {
+      const res = await fetch('/api/settings/registration')
+      const data = await res.json()
+      if (res.ok) setAllowRegistration(data.allowRegistration)
+    } catch (error) {
+      console.error('Error fetching registration setting:', error)
+    }
+  }
+
+  const saveRegistrationSetting = async (value: boolean) => {
+    try {
+      setSavingRegistration(true)
+      setRegistrationMessage(null)
+      const res = await fetch('/api/settings/registration', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ allowRegistration: value }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setRegistrationMessage({ type: 'error', text: data.error || 'Error' })
+      } else {
+        setAllowRegistration(value)
+        setRegistrationMessage({ type: 'success', text: data.message })
+      }
+    } catch (error) {
+      console.error('Error saving registration setting:', error)
+      setRegistrationMessage({ type: 'error', text: 'Error saving setting' })
+    } finally {
+      setSavingRegistration(false)
+    }
+  }
 
   const fetchAlertSettings = async () => {
     try {
@@ -414,6 +453,44 @@ export default function SettingsPage() {
           {roasThresholdMessage && (
             <p className={`mt-2 text-sm ${roasThresholdMessage.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
               {roasThresholdMessage.text}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Admin Settings */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-6 py-5 border-b border-gray-100">
+          <h3 className="text-lg font-semibold text-gray-900">Admin</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            Cài đặt quản trị hệ thống
+          </p>
+        </div>
+        <div className="px-6 py-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-900">Cho phép đăng ký tài khoản mới</p>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Khi tắt, chỉ tài khoản đã có mới có thể đăng nhập. Không ai có thể tự tạo tài khoản mới.
+              </p>
+            </div>
+            <button
+              onClick={() => saveRegistrationSetting(!allowRegistration)}
+              disabled={savingRegistration}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none disabled:opacity-50 ${
+                allowRegistration ? 'bg-indigo-600' : 'bg-gray-200'
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform ${
+                  allowRegistration ? 'translate-x-6' : 'translate-x-1'
+                }`}
+              />
+            </button>
+          </div>
+          {registrationMessage && (
+            <p className={`text-sm ${registrationMessage.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+              {registrationMessage.text}
             </p>
           )}
         </div>

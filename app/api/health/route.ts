@@ -1,5 +1,11 @@
 import { NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
 
 export async function GET() {
-  return NextResponse.json({ status: "ok" }, { status: 200 })
+  try {
+    await prisma.$queryRaw`SELECT 1`
+    return NextResponse.json({ status: "ok" }, { status: 200 })
+  } catch {
+    return NextResponse.json({ status: "error", message: "Database unavailable" }, { status: 503 })
+  }
 }

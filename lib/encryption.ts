@@ -7,7 +7,19 @@ if (!process.env.ENCRYPTION_KEY) {
   throw new Error('ENCRYPTION_KEY environment variable is required')
 }
 
-const ENCRYPTION_KEY = Buffer.from(process.env.ENCRYPTION_KEY.slice(0, 32).padEnd(32, '0'))
+const rawKey = process.env.ENCRYPTION_KEY.trim()
+
+// AES-256 cần đúng 32 bytes. Key phải có ít nhất 32 ký tự.
+// Nếu ngắn hơn, padEnd tạo key yếu mà không có cảnh báo — throw sớm.
+if (rawKey.length < 32) {
+  throw new Error(
+    `ENCRYPTION_KEY must be at least 32 characters (got ${rawKey.length}). ` +
+    'Generate a secure key with: openssl rand -hex 32'
+  )
+}
+
+// Lấy 32 bytes đầu (UTF-8). Key trong .env nên là chuỗi >= 64 hex chars.
+const ENCRYPTION_KEY = Buffer.from(rawKey.slice(0, 32))
 
 export function encrypt(text: string): string {
   const iv = crypto.randomBytes(IV_LENGTH)

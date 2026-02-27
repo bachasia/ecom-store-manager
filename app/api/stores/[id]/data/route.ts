@@ -28,13 +28,14 @@ export async function DELETE(
     // OrderItem → Order → Product, SyncLog (tất cả có onDelete: Cascade từ Store)
     // Nhưng vì xóa trực tiếp không qua store.delete, cần xóa thủ công
 
-    const [deletedOrders, deletedProducts, deletedSyncLogs] = await prisma.$transaction([
+    const [deletedOrders, deletedProducts, deletedSyncLogs, deletedAdsCosts] = await prisma.$transaction([
       prisma.order.deleteMany({ where: { storeId: id } }),
       prisma.product.deleteMany({ where: { storeId: id } }),
       prisma.syncLog.deleteMany({ where: { storeId: id } }),
+      (prisma as any).adsCost.deleteMany({ where: { storeId: id } }),
     ])
 
-    // Reset sync metadata trên store
+    // Reset sync metadata trên store (trong transaction riêng để không rollback nếu update fail)
     await prisma.store.update({
       where: { id },
       data: {
@@ -46,11 +47,12 @@ export async function DELETE(
 
     return NextResponse.json({
       success: true,
-      message: `Đã xóa ${deletedOrders.count} đơn hàng, ${deletedProducts.count} sản phẩm`,
+      message: `Đã xóa ${deletedOrders.count} đơn hàng, ${deletedProducts.count} sản phẩm, ${deletedAdsCosts.count} ads cost`,
       stats: {
         orders: deletedOrders.count,
         products: deletedProducts.count,
         syncLogs: deletedSyncLogs.count,
+        adsCosts: deletedAdsCosts.count,
       }
     })
   } catch (error: any) {

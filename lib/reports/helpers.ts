@@ -54,10 +54,15 @@ export function getPresetRange(
     }
   }
 
-  return {
-    startDate: toYMD(new Date(now.getFullYear() - 1, 0, 1)),
-    endDate: toYMD(new Date(now.getFullYear() - 1, 11, 31)),
+  if (preset === "lastYear") {
+    return {
+      startDate: toYMD(new Date(now.getFullYear() - 1, 0, 1)),
+      endDate: toYMD(new Date(now.getFullYear() - 1, 11, 31)),
+    }
   }
+
+  // allTime — không giới hạn startDate, endDate là hôm nay
+  return { startDate: "", endDate: toYMD(now) }
 }
 
 export interface AlertSummary {

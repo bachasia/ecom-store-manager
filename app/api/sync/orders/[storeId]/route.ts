@@ -102,10 +102,11 @@ export async function POST(
       )
     }
 
+    let ordersCreated = 0
+    let ordersUpdated = 0
+    let totalProcessed = 0
+
     try {
-      let ordersCreated = 0
-      let ordersUpdated = 0
-      let totalProcessed = 0
 
       // ─── Helper: kiểm tra cancel flag từ DB ──────────────────────────────
       const isCancelled = async (): Promise<boolean> => {
@@ -368,13 +369,15 @@ export async function POST(
           const orders = await client.getOrders({ ...params, page, limit: PAGE_SIZE })
           if (!orders.length) break
 
+          console.info(`[sync:orders][shopbase] page=${page} orders=${orders.length} total_processed=${totalProcessed}`)
+
           for (const order of orders) {
             if (await isCancelled()) throw new CancelledError()
 
-            // List endpoint may miss attribution fields, hydrate per-order detail when possible
-            const orderDetail = await client.getOrder(order.id, 8000).catch(() => null)
-            if (await isCancelled()) throw new CancelledError()
-            const sourceOrder = orderDetail || order
+            // Dùng thẳng list response — ShopBase (Shopify-based) đã trả về đủ
+            // gateway, source_name, landing_site, referring_site, note_attributes trong list endpoint.
+            // Bỏ getOrder per-order để tránh N+1 requests (tiết kiệm ~80% thời gian sync).
+            const sourceOrder = order
 
             const existingOrder = await prisma.order.findUnique({
               where: {
@@ -698,26 +701,33 @@ export async function POST(
           const params: any = {}
           if (lastSyncAt) params.modifiedAfter = lastSyncAt.toISOString()
 
-          const orders = await client.getAllOrders(params)
-
-          for (const order of orders) {
-            if (await isCancelled()) throw new CancelledError()
-            await upsertOrder({
-              ...order,
-              billing: { ...order.billing },
-              shipping: order.shipping ? { ...order.shipping } : undefined,
-              line_items: order.line_items.map(item => ({
-                id: item.id,
-                sku: item.sku,
-                product_id: null,
-                variation_id: null,
-                name: item.name,
-                quantity: item.quantity,
-                price: item.price,
-                total: item.total,
-              })),
-            } as any)
-          }
+          await client.streamAllOrders({
+            ...params,
+            onPage: async (orders, { page, fetched }) => {
+              console.info(`[sync:orders][wc-rest] page=${page} orders=${orders.length} total_processed=${totalProcessed}`)
+              for (const order of orders) {
+                if (await isCancelled()) throw new CancelledError()
+                await upsertOrder({
+                  ...order,
+                  billing: { ...order.billing },
+                  shipping: order.shipping ? { ...order.shipping } : undefined,
+                  line_items: order.line_items.map(item => ({
+                    id: item.id,
+                    sku: item.sku,
+                    product_id: null,
+                    variation_id: null,
+                    name: item.name,
+                    quantity: item.quantity,
+                    price: item.price,
+                    total: item.total,
+                  })),
+                } as any)
+              }
+            },
+            onProgress: (fetched) => {
+              console.info(`[sync:orders][wc-rest] fetched=${fetched}`)
+            },
+          })
         }
 
       } else {
@@ -761,13 +771,20 @@ export async function POST(
       if (error instanceof CancelledError) {
         await prisma.syncLog.update({
           where: { id: syncLog.id },
-          data: { status: 'cancelled', errorMessage: 'Cancelled by user', completedAt: new Date() }
+          data: {
+            status: 'cancelled',
+            errorMessage: 'Cancelled by user',
+            completedAt: new Date(),
+            recordsProcessed: totalProcessed,
+            recordsCreated: ordersCreated,
+            recordsUpdated: ordersUpdated,
+          }
         })
         await prisma.store.update({
           where: { id: store.id },
           data: { lastSyncStatus: 'cancelled', lastSyncError: 'Cancelled by user' }
         })
-        return NextResponse.json({ success: false, cancelled: true, message: 'Sync đã bị dừng' })
+        return NextResponse.json({ success: false, cancelled: true, message: `Sync đã bị dừng (đã xử lý ${totalProcessed} đơn hàng)` })
       }
 
       console.error("Order sync error:", error)

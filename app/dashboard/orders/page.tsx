@@ -84,9 +84,14 @@ const getPresetRange = (preset: Exclude<DatePreset, 'custom'>) => {
     return { startDate: toYMD(start), endDate: toYMD(end) }
   }
 
-  const start = new Date(now.getFullYear() - 1, 0, 1)
-  const end = new Date(now.getFullYear() - 1, 11, 31)
-  return { startDate: toYMD(start), endDate: toYMD(end) }
+  if (preset === 'lastYear') {
+    const start = new Date(now.getFullYear() - 1, 0, 1)
+    const end = new Date(now.getFullYear() - 1, 11, 31)
+    return { startDate: toYMD(start), endDate: toYMD(end) }
+  }
+
+  // allTime
+  return { startDate: '', endDate: toYMD(now) }
 }
 
 export default function OrdersPage() {
@@ -246,6 +251,7 @@ export default function OrdersPage() {
               { value: 'last30', label: tDashboard('last30Days') },
               { value: 'lastMonth', label: tDashboard('lastMonth') },
               { value: 'lastYear', label: tDashboard('lastYear') },
+              { value: 'allTime', label: tDashboard('allTime') },
               { value: 'custom', label: tDashboard('custom') },
             ]}
           />

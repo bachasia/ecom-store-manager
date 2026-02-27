@@ -133,7 +133,11 @@ export async function POST(req: Request) {
       })]
     })
 
-    await prisma.$transaction(updates)
+    // Chunk thành batch 500 để tránh OOM với store lớn
+    const BATCH_SIZE = 500
+    for (let i = 0; i < updates.length; i += BATCH_SIZE) {
+      await prisma.$transaction(updates.slice(i, i + BATCH_SIZE))
+    }
     const ordersUpdated = updates.length
 
     return NextResponse.json({

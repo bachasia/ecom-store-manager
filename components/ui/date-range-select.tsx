@@ -2,7 +2,7 @@
 
 import CustomSelect from "@/components/ui/custom-select"
 
-export type DatePreset = 'today' | 'yesterday' | 'mtd' | 'last7' | 'last30' | 'lastMonth' | 'lastYear' | 'custom'
+export type DatePreset = 'today' | 'yesterday' | 'mtd' | 'last7' | 'last30' | 'lastMonth' | 'lastYear' | 'allTime' | 'custom'
 
 interface DateRangeSelectProps {
   value: DatePreset
