@@ -3,7 +3,7 @@
 **Feature**: Section 9.2 — Báo Cáo Chi Tiết  
 **Khởi tạo**: 2026-02-26  
 **Cập nhật lần cuối**: 2026-02-26  
-**Status tổng thể**: 🔄 ĐANG TRIỂN KHAI — Phase 1 ✅ Phase 2 ✅
+**Status tổng thể**: ✅ HOÀN THÀNH — Phase 1 ✅ Phase 2 ✅ Phase 3 ✅ Phase 4 ✅
 
 ---
 
@@ -26,8 +26,8 @@
 ```
 Phase 1 — API Layer          [✅] 5/5  endpoints  ← DONE
 Phase 2 — UI Components      [✅] 6/6  components ← DONE
-Phase 3 — Pages & Navigation [ ] 0/3  tasks
-Phase 4 — Settings Extension [ ] 0/1  task
+Phase 3 — Pages & Navigation [✅] 3/3  tasks ← DONE
+Phase 4 — Settings Extension [✅] 1/1  task  ← DONE
 ```
 
 ---
@@ -317,7 +317,7 @@ Phase 4 — Settings Extension [ ] 0/1  task
 ## PHASE 3 — PAGES & NAVIGATION
 
 ### 3.1 Reports Page Layout
-**Status**: ⏳ PENDING  
+**Status**: ✅ DONE
 **File**: `app/dashboard/reports/page.tsx`  
 **Ước tính**: ~3h
 
@@ -348,7 +348,7 @@ Phase 4 — Settings Extension [ ] 0/1  task
 ---
 
 ### 3.2 DashboardNav Update
-**Status**: ⏳ PENDING  
+**Status**: ✅ DONE
 **File**: `components/dashboard/DashboardNav.tsx`  
 **Ước tính**: ~0.5h
 
@@ -364,7 +364,7 @@ Phase 4 — Settings Extension [ ] 0/1  task
 ---
 
 ### 3.3 i18n Keys
-**Status**: ⏳ PENDING  
+**Status**: ✅ DONE
 **Files**: `messages/en.json`, `messages/vi.json`  
 **Ước tính**: ~0.5h
 
@@ -409,7 +409,7 @@ Phase 4 — Settings Extension [ ] 0/1  task
 **Checklist**:
 - [x] API: `GET /api/settings/alerts` (đọc roas_threshold) — `app/api/settings/alerts/route.ts`
 - [x] API: `PUT /api/settings/alerts` (lưu roas_threshold)
-- [ ] UI: Input field + Save button trong Settings page
+- [x] UI: Input field + Save button trong Settings page
 
 ---
 
@@ -420,7 +420,7 @@ Phase 4 — Settings Extension [ ] 0/1  task
 | # | Task | File | Ước tính | Priority | Status |
 |---|------|------|----------|----------|--------|
 | 1 | Settings: ROAS threshold API | `app/api/settings/alerts/route.ts` | 1h | HIGH | ✅ DONE |
-| 2 | Settings: ROAS threshold UI | `app/dashboard/settings/page.tsx` | 0.5h | HIGH | ⏳ Phase 4 |
+| 2 | Settings: ROAS threshold UI | `app/dashboard/settings/page.tsx` | 0.5h | HIGH | ✅ DONE |
 | 3 | API: `/api/reports/alerts` | `app/api/reports/alerts/route.ts` | 3h | HIGH | ✅ DONE |
 | 4 | API: `/api/reports/daily` | `app/api/reports/daily/route.ts` | 3h | HIGH | ✅ DONE |
 | 5 | API: `/api/reports/sku` | `app/api/reports/sku/route.ts` | 2h | HIGH | ✅ DONE |
@@ -431,9 +431,9 @@ Phase 4 — Settings Extension [ ] 0/1  task
 | 10 | Component: `SKUReportTable` | `components/reports/SKUReportTable.tsx` | 3h | HIGH | ⏳ Phase 2 |
 | 11 | Component: `StoreComparisonTable` | `components/reports/StoreComparisonTable.tsx` | 2h | MEDIUM | ⏳ Phase 2 |
 | 12 | Component: `StoreTrendChart` | `components/reports/StoreTrendChart.tsx` | 2h | MEDIUM | ⏳ Phase 2 |
-| 13 | Page: Reports layout + tabs | `app/dashboard/reports/page.tsx` | 3h | HIGH | ⏳ Phase 3 |
-| 14 | Nav: DashboardNav update | `components/dashboard/DashboardNav.tsx` | 0.5h | HIGH | ⏳ Phase 3 |
-| 15 | i18n: en.json + vi.json | `messages/*.json` | 0.5h | HIGH | ⏳ Phase 3 |
+| 13 | Page: Reports layout + tabs | `app/dashboard/reports/page.tsx` | 3h | HIGH | ✅ DONE |
+| 14 | Nav: DashboardNav update | `components/dashboard/DashboardNav.tsx` | 0.5h | HIGH | ✅ DONE |
+| 15 | i18n: en.json + vi.json | `messages/*.json` | 0.5h | HIGH | ✅ DONE |
 
 **Tổng ước tính**: ~31.5h
 
@@ -529,6 +529,7 @@ const dailyData = await prisma.$queryRaw`
 | 2026-02-26 | Tạo file | Khởi tạo plan đầy đủ cho section 9.2 |
 | 2026-02-26 | Phase 1 DONE ✅ | Tạo 5 API endpoints: `/api/settings/alerts`, `/api/reports/alerts`, `/api/reports/daily`, `/api/reports/sku`, `/api/reports/store` |
 | 2026-02-27 | Phase 2 DONE ✅ | Tạo 6 UI components: `DailyReportTable`, `DailyDrilldownModal`, `SKUReportTable`, `StoreComparisonTable`, `StoreTrendChart`, `AlertsPanel` + i18n keys (en/vi) |
+| 2026-02-27 | Phase 3+4 DONE ✅ | `app/dashboard/reports/page.tsx` (Reports page với 4 tabs + export xlsx), `DashboardNav.tsx` (Reports link + alert badge), i18n `nav.reports` + `settings.alertSettings` keys, Settings ROAS threshold UI |
 
 ---
 

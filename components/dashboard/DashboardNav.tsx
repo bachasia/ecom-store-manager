@@ -1,9 +1,12 @@
 "use client"
 
 import { usePathname } from "next/navigation"
+import { useEffect, useState } from "react"
+import { signOut } from "next-auth/react"
 import Link from "next/link"
 import { useTranslations } from 'next-intl'
 import LanguageSwitcher from "@/components/language-switcher"
+import { getAlertCount, getCurrentMonthToDateRange } from "@/lib/reports/helpers"
 import { 
   LayoutDashboard, 
   Store, 
@@ -11,6 +14,7 @@ import {
   ShoppingCart,
   TrendingUp, 
   Settings,
+  BarChart2,
   LogOut
 } from "lucide-react"
 
@@ -19,6 +23,21 @@ export default function DashboardNav({ userEmail }: { userEmail: string }) {
   const t = useTranslations('nav')
   const isViPath = pathname === "/vi" || pathname.startsWith("/vi/")
   const normalizedPathname = pathname.replace(/^\/vi(?=\/|$)/, "") || "/"
+
+  const [alertCount, setAlertCount] = useState(0)
+
+  // Background fetch alert count (MTD) for nav badge
+  useEffect(() => {
+    const { startDate, endDate } = getCurrentMonthToDateRange()
+    fetch(`/api/reports/alerts?startDate=${startDate}&endDate=${endDate}`)
+      .then((r) => r.json())
+      .then((json) => {
+        if (json.summary) {
+          setAlertCount(getAlertCount(json.summary))
+        }
+      })
+      .catch(() => {})
+  }, [])
 
   const isActive = (path: string) => {
     if (path === "/dashboard") {
@@ -36,13 +55,21 @@ export default function DashboardNav({ userEmail }: { userEmail: string }) {
   const localePrefix = isViPath ? "/vi" : ""
   const withLocale = (href: string) => `${localePrefix}${href}`
 
+  const handleLogout = async () => {
+    await signOut({
+      callbackUrl: withLocale("/login"),
+      redirect: true,
+    })
+  }
+
   const navigation = [
-    { name: "Dashboard", href: withLocale("/dashboard"), matchPath: "/dashboard", icon: LayoutDashboard },
-    { name: t('orders'), href: withLocale("/dashboard/orders"), matchPath: "/dashboard/orders", icon: ShoppingCart },
-    { name: t('stores'), href: withLocale("/dashboard/stores"), matchPath: "/dashboard/stores", icon: Store },
-    { name: t('products'), href: withLocale("/dashboard/products"), matchPath: "/dashboard/products", icon: Package },
-    { name: t('ads'), href: withLocale("/dashboard/ads"), matchPath: "/dashboard/ads", icon: TrendingUp },
-    { name: t('settings'), href: withLocale("/dashboard/settings"), matchPath: "/dashboard/settings", icon: Settings },
+    { name: "Dashboard",   href: withLocale("/dashboard"),          matchPath: "/dashboard",          icon: LayoutDashboard, badge: 0 },
+    { name: t('orders'),   href: withLocale("/dashboard/orders"),   matchPath: "/dashboard/orders",   icon: ShoppingCart,    badge: 0 },
+    { name: t('stores'),   href: withLocale("/dashboard/stores"),   matchPath: "/dashboard/stores",   icon: Store,           badge: 0 },
+    { name: t('products'), href: withLocale("/dashboard/products"), matchPath: "/dashboard/products", icon: Package,         badge: 0 },
+    { name: t('ads'),      href: withLocale("/dashboard/ads"),      matchPath: "/dashboard/ads",      icon: TrendingUp,      badge: 0 },
+    { name: t('reports'),  href: withLocale("/dashboard/reports"),  matchPath: "/dashboard/reports",  icon: BarChart2,       badge: alertCount },
+    { name: t('settings'), href: withLocale("/dashboard/settings"), matchPath: "/dashboard/settings", icon: Settings,        badge: 0 },
   ]
 
   return (
@@ -63,8 +90,13 @@ export default function DashboardNav({ userEmail }: { userEmail: string }) {
           const Icon = item.icon
           return (
             <Link key={item.name} href={item.href} className={linkClass(item.matchPath)}>
-              <Icon className="w-5 h-5 mr-3" />
-              {item.name}
+              <Icon className="w-5 h-5 mr-3 flex-shrink-0" />
+              <span className="flex-1">{item.name}</span>
+              {item.badge > 0 && (
+                <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1 text-xs font-bold rounded-full bg-red-100 text-red-600">
+                  {item.badge > 99 ? "99+" : item.badge}
+                </span>
+              )}
             </Link>
           )
         })}
@@ -91,6 +123,15 @@ export default function DashboardNav({ userEmail }: { userEmail: string }) {
             </p>
           </div>
         </div>
+
+        <button
+          type="button"
+          onClick={handleLogout}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-gray-200 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 hover:text-gray-900 transition-colors"
+        >
+          <LogOut className="h-4 w-4" />
+          {t('logout')}
+        </button>
       </div>
     </div>
   )

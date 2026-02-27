@@ -38,6 +38,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.prod
+      args:
+        DATABASE_URL: postgresql://pnl_test_user:pnl_test_password@postgres:5432/pnl_dashboard_test
+        NEXTAUTH_URL: http://localhost:3001
+        NEXTAUTH_SECRET: test-secret-change-in-production
+        ENCRYPTION_KEY: test-encryption-key-32-bytes-long
     container_name: pnl-app-test
     restart: unless-stopped
     ports:
@@ -54,7 +59,7 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-    command: sh -c "npx prisma migrate deploy && node server.js"
+    command: sh -c "node node_modules/prisma/build/index.js migrate deploy && node server.js"
 
 volumes:
   postgres_test_data:

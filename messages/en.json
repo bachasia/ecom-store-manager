@@ -4,6 +4,8 @@
     "stores": "Stores",
     "products": "Products",
     "ads": "Ads",
+    "reports": "Reports",
+    "logout": "Logout",
     "settings": "Settings"
   },
   "kpi": {
@@ -280,7 +282,12 @@
     "cannotUpdate": "Cannot update gateway",
     "updateError": "An error occurred while updating",
     "loading": "Loading...",
-    "timezoneSaved": "Timezone saved successfully"
+    "timezoneSaved": "Timezone saved successfully",
+    "alertSettings": "Alert Settings",
+    "alertSettingsDesc": "Configure thresholds for performance alerts",
+    "roasThreshold": "Alert when ROAS is below",
+    "roasThresholdSaved": "Alert threshold saved successfully",
+    "roasThresholdHint": "Alerts will trigger only for days with ad spend > 0"
   },
   "auth": {
     "login": "Login to P&L Dashboard",
@@ -297,6 +304,8 @@
     "loggingIn": "Logging in...",
     "registerButton": "Register",
     "registering": "Registering...",
+    "registrationSuccess": "Registration successful. Please sign in with your new account.",
+    "signInToContinue": "Please sign in to continue.",
     "invalidCredentials": "Invalid email or password",
     "loginError": "An error occurred while logging in",
     "registerError": "An error occurred while registering",

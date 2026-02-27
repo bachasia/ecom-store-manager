@@ -14,6 +14,10 @@ interface PaymentGateway {
   isActive: boolean
 }
 
+interface AlertSettings {
+  roasThreshold: number
+}
+
 export default function SettingsPage() {
   const t = useTranslations('settings')
   const [gateways, setGateways] = useState<PaymentGateway[]>([])
@@ -30,11 +34,50 @@ export default function SettingsPage() {
     feeFixed: 0,
   })
 
+  const [roasThreshold, setRoasThreshold] = useState<number>(1.0)
+  const [roasThresholdMessage, setRoasThresholdMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [savingRoas, setSavingRoas] = useState(false)
+
   useEffect(() => {
     fetchTimezone()
     fetchGateways()
     fetchStores()
+    fetchAlertSettings()
   }, [])
+
+  const fetchAlertSettings = async () => {
+    try {
+      const response = await fetch('/api/settings/alerts')
+      const data = await response.json()
+      if (response.ok && data.roasThreshold !== undefined) {
+        setRoasThreshold(Number(data.roasThreshold))
+      }
+    } catch (error) {
+      console.error('Error fetching alert settings:', error)
+    }
+  }
+
+  const saveAlertSettings = async () => {
+    try {
+      setSavingRoas(true)
+      setRoasThresholdMessage(null)
+      const response = await fetch('/api/settings/alerts', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roasThreshold }),
+      })
+      if (!response.ok) {
+        setRoasThresholdMessage({ type: 'error', text: t('updateError') })
+      } else {
+        setRoasThresholdMessage({ type: 'success', text: t('roasThresholdSaved') })
+      }
+    } catch (error) {
+      console.error('Error saving alert settings:', error)
+      setRoasThresholdMessage({ type: 'error', text: t('updateError') })
+    } finally {
+      setSavingRoas(false)
+    }
+  }
 
   const fetchStores = async () => {
     try {
@@ -337,6 +380,42 @@ export default function SettingsPage() {
               </div>
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Alert Settings */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+        <div className="px-6 py-5 border-b border-gray-100">
+          <h3 className="text-lg font-semibold text-gray-900">{t('alertSettings')}</h3>
+          <p className="mt-1 text-sm text-gray-500">{t('alertSettingsDesc')}</p>
+        </div>
+        <div className="px-6 py-5">
+          <div className="flex items-center gap-3 flex-wrap">
+            <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+              {t('roasThreshold')}
+            </label>
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              value={roasThreshold}
+              onChange={(e) => setRoasThreshold(parseFloat(e.target.value) || 0)}
+              className="w-24 px-3 py-2 rounded-xl border border-gray-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none"
+            />
+            <button
+              onClick={saveAlertSettings}
+              disabled={savingRoas}
+              className="h-[38px] px-4 rounded-xl text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-indigo-500 hover:shadow-md transition-all disabled:opacity-60"
+            >
+              {savingRoas ? t('loading') : t('save')}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-gray-500">{t('roasThresholdHint')}</p>
+          {roasThresholdMessage && (
+            <p className={`mt-2 text-sm ${roasThresholdMessage.type === 'success' ? 'text-green-600' : 'text-red-600'}`}>
+              {roasThresholdMessage.text}
+            </p>
+          )}
         </div>
       </div>
 

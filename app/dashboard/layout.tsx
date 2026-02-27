@@ -1,4 +1,5 @@
 import { getServerSession } from "next-auth"
+import { headers } from "next/headers"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/app/api/auth/[...nextauth]/route"
 import DashboardNav from "@/components/dashboard/DashboardNav"
@@ -9,9 +10,13 @@ export default async function DashboardLayout({
   children: React.ReactNode
 }) {
   const session = await getServerSession(authOptions)
+  const requestHeaders = await headers()
+  const locale = requestHeaders.get("x-locale") === "vi" ? "vi" : "en"
 
   if (!session) {
-    redirect("/login")
+    const loginPath = locale === "vi" ? "/vi/login" : "/login"
+    const callbackUrl = locale === "vi" ? "/vi/dashboard" : "/dashboard"
+    redirect(`${loginPath}?callbackUrl=${encodeURIComponent(callbackUrl)}&reason=auth_required`)
   }
 
   return (

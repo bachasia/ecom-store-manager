@@ -16,6 +16,16 @@ RUN npm ci --only=production
 # Build stage
 FROM base AS builder
 
+ARG DATABASE_URL="postgresql://build:build@localhost:5432/build"
+ARG NEXTAUTH_URL="http://localhost:3000"
+ARG NEXTAUTH_SECRET="docker-build-secret"
+ARG ENCRYPTION_KEY="docker-build-encryption-key-32-bytes"
+
+ENV DATABASE_URL=$DATABASE_URL
+ENV NEXTAUTH_URL=$NEXTAUTH_URL
+ENV NEXTAUTH_SECRET=$NEXTAUTH_SECRET
+ENV ENCRYPTION_KEY=$ENCRYPTION_KEY
+
 # Install all dependencies (including dev)
 RUN npm ci
 
@@ -52,6 +62,8 @@ COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
 
 # Set correct permissions
 RUN chown -R nextjs:nodejs /app

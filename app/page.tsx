@@ -1,12 +1,17 @@
-export default function Home() {
-  return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-24">
-      <div className="text-center">
-        <h1 className="text-4xl font-bold mb-4">P&L Dashboard</h1>
-        <p className="text-muted-foreground">
-          Dashboard quản lý lợi nhuận cho cửa hàng thương mại điện tử
-        </p>
-      </div>
-    </main>
-  )
+import { getServerSession } from "next-auth"
+import { headers } from "next/headers"
+import { redirect } from "next/navigation"
+import { authOptions } from "@/app/api/auth/[...nextauth]/route"
+
+export default async function Home() {
+  const session = await getServerSession(authOptions)
+  const requestHeaders = await headers()
+  const locale = requestHeaders.get("x-locale") === "vi" ? "vi" : "en"
+  const localePrefix = locale === "vi" ? "/vi" : ""
+
+  if (!session) {
+    redirect(`${localePrefix}/login?callbackUrl=${encodeURIComponent(`${localePrefix}/dashboard`)}&reason=auth_required`)
+  }
+
+  redirect(`${localePrefix}/dashboard`)
 }

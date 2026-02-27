@@ -4,6 +4,8 @@
     "stores": "Cửa hàng",
     "products": "Sản phẩm",
     "ads": "Quảng cáo",
+    "reports": "Báo Cáo",
+    "logout": "Đăng xuất",
     "settings": "Cài đặt"
   },
   "kpi": {
@@ -275,7 +277,12 @@
     "cannotUpdate": "Không thể cập nhật gateway",
     "updateError": "Đã xảy ra lỗi khi cập nhật",
     "loading": "Đang tải...",
-    "timezoneSaved": "Đã lưu múi giờ thành công"
+    "timezoneSaved": "Đã lưu múi giờ thành công",
+    "alertSettings": "Cài Đặt Cảnh Báo",
+    "alertSettingsDesc": "Cấu hình ngưỡng cho các cảnh báo hiệu suất",
+    "roasThreshold": "Cảnh báo khi ROAS dưới",
+    "roasThresholdSaved": "Đã lưu ngưỡng cảnh báo thành công",
+    "roasThresholdHint": "Cảnh báo chỉ kích hoạt với những ngày có chi phí quảng cáo > 0"
   },
   "auth": {
     "login": "Đăng nhập vào P&L Dashboard",
@@ -292,6 +299,8 @@
     "loggingIn": "Đang đăng nhập...",
     "registerButton": "Đăng ký",
     "registering": "Đang đăng ký...",
+    "registrationSuccess": "Đăng ký thành công. Vui lòng đăng nhập bằng tài khoản mới.",
+    "signInToContinue": "Vui lòng đăng nhập để tiếp tục.",
     "invalidCredentials": "Email hoặc password không đúng",
     "loginError": "Đã xảy ra lỗi khi đăng nhập",
     "registerError": "Đã xảy ra lỗi khi đăng ký",
