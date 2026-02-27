@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { RefreshCw } from "lucide-react"
+import { useTranslations } from "next-intl"
 
 interface AutoSyncSettingsProps {
   storeId: string
@@ -15,39 +16,21 @@ interface AutoSyncState {
   lastProductAutoSyncAt: string | null
 }
 
-const INTERVAL_OPTIONS = [
-  { value: 5,    label: "5 phút" },
-  { value: 15,   label: "15 phút" },
-  { value: 30,   label: "30 phút" },
-  { value: 60,   label: "1 giờ" },
-  { value: 120,  label: "2 giờ" },
-  { value: 180,  label: "3 giờ" },
-  { value: 360,  label: "6 giờ" },
-  { value: 720,  label: "12 giờ" },
-  { value: 1440, label: "24 giờ" },
-]
-
-function formatDateTime(iso: string | null): string {
-  if (!iso) return "Chưa sync"
-  return new Date(iso).toLocaleString("vi-VN", {
-    day: "2-digit", month: "2-digit", year: "numeric",
-    hour: "2-digit", minute: "2-digit",
-  })
-}
-
-function nextSyncIn(lastAt: string | null, intervalMinutes: number): string {
-  if (!lastAt) return "Ngay khi bật"
-  const next = new Date(lastAt).getTime() + intervalMinutes * 60 * 1000
-  const diffMs = next - Date.now()
-  if (diffMs <= 0) return "Ngay bây giờ"
-  const diffMin = Math.floor(diffMs / 60000)
-  if (diffMin < 60) return `${diffMin} phút nữa`
-  const h = Math.floor(diffMin / 60)
-  const m = diffMin % 60
-  return m > 0 ? `${h}h ${m}m nữa` : `${h}h nữa`
-}
-
 export default function AutoSyncSettings({ storeId, platform }: AutoSyncSettingsProps) {
+  const t = useTranslations("stores.autoSync")
+
+  const INTERVAL_OPTIONS = [
+    { value: 5,    label: t("interval5m") },
+    { value: 15,   label: t("interval15m") },
+    { value: 30,   label: t("interval30m") },
+    { value: 60,   label: t("interval1h") },
+    { value: 120,  label: t("interval2h") },
+    { value: 180,  label: t("interval3h") },
+    { value: 360,  label: t("interval6h") },
+    { value: 720,  label: t("interval12h") },
+    { value: 1440, label: t("interval24h") },
+  ]
+
   const [settings, setSettings] = useState<AutoSyncState>({
     autoSyncEnabled: false,
     autoSyncInterval: 60,
@@ -100,6 +83,26 @@ export default function AutoSyncSettings({ storeId, platform }: AutoSyncSettings
     }
   }
 
+  function formatDateTime(iso: string | null): string {
+    if (!iso) return t("never")
+    return new Date(iso).toLocaleString(undefined, {
+      day: "2-digit", month: "2-digit", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    })
+  }
+
+  function nextSyncIn(lastAt: string | null, intervalMinutes: number): string {
+    if (!lastAt) return t("immediately")
+    const next = new Date(lastAt).getTime() + intervalMinutes * 60 * 1000
+    const diffMs = next - Date.now()
+    if (diffMs <= 0) return t("rightNow")
+    const diffMin = Math.floor(diffMs / 60000)
+    if (diffMin < 60) return t("inMinutes", { n: diffMin })
+    const h = Math.floor(diffMin / 60)
+    const m = diffMin % 60
+    return m > 0 ? t("inHours", { n: h, m }) : t("inHoursOnly", { n: h })
+  }
+
   if (loading) {
     return (
       <div className="mt-4 pt-4 border-t border-gray-100 animate-pulse">
@@ -115,9 +118,9 @@ export default function AutoSyncSettings({ storeId, platform }: AutoSyncSettings
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <RefreshCw className="w-4 h-4 text-indigo-500" />
-          <span className="text-sm font-semibold text-gray-800">Auto Sync</span>
-          {saving && <span className="text-xs text-gray-400">Đang lưu...</span>}
-          {saved && <span className="text-xs text-green-500">Đã lưu</span>}
+          <span className="text-sm font-semibold text-gray-800">{t("title")}</span>
+          {saving && <span className="text-xs text-gray-400">{t("saving")}</span>}
+          {saved  && <span className="text-xs text-green-500">{t("saved")}</span>}
         </div>
 
         {/* Toggle */}
@@ -140,7 +143,7 @@ export default function AutoSyncSettings({ storeId, platform }: AutoSyncSettings
         <div className="space-y-3">
           {/* Interval picker */}
           <div className="flex items-center gap-2">
-            <span className="text-xs text-gray-500 shrink-0">Sync orders mỗi</span>
+            <span className="text-xs text-gray-500 shrink-0">{t("syncOrdersEvery")}</span>
             <select
               value={settings.autoSyncInterval}
               onChange={e => handleIntervalChange(Number(e.target.value))}
@@ -155,21 +158,21 @@ export default function AutoSyncSettings({ storeId, platform }: AutoSyncSettings
           {/* Timestamps */}
           <div className="rounded-xl bg-gray-50 border border-gray-100 p-3 space-y-1.5 text-xs text-gray-500">
             <div className="flex justify-between">
-              <span>Orders sync lần cuối</span>
+              <span>{t("lastOrderSync")}</span>
               <span className="font-medium text-gray-700">{formatDateTime(settings.lastOrderAutoSyncAt)}</span>
             </div>
             <div className="flex justify-between">
-              <span>Orders sync tiếp theo</span>
+              <span>{t("nextOrderSync")}</span>
               <span className="font-medium text-indigo-600">{nextSyncIn(settings.lastOrderAutoSyncAt, settings.autoSyncInterval)}</span>
             </div>
             {platform === "shopbase" && (
               <>
                 <div className="flex justify-between border-t border-gray-100 pt-1.5 mt-1.5">
-                  <span>Products sync lần cuối</span>
+                  <span>{t("lastProductSync")}</span>
                   <span className="font-medium text-gray-700">{formatDateTime(settings.lastProductAutoSyncAt)}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Products sync tiếp theo</span>
+                  <span>{t("nextProductSync")}</span>
                   <span className="font-medium text-indigo-600">{nextSyncIn(settings.lastProductAutoSyncAt, 24 * 60)}</span>
                 </div>
               </>
