@@ -82,6 +82,7 @@ export async function GET(req: Request) {
         order: {
           select: {
             id: true,
+            storeId: true,
             total: true,
             refundAmount: true,
             totalCOGS: true,
@@ -93,8 +94,9 @@ export async function GET(req: Request) {
     })
 
     // Convert Decimal to number for calculations
+    // Key: "storeId::sku" để phân biệt cùng SKU ở các store khác nhau
     const orderItemsForCalc = orderItems.map(item => ({
-      sku: item.sku,
+      sku: `${item.order.storeId}::${item.sku}`,
       quantity: item.quantity,
       total: Number(item.total),
       totalCost: Number(item.totalCost),
@@ -108,17 +110,26 @@ export async function GET(req: Request) {
       }
     }))
 
+    // Build lookup map: "storeId::sku" → productName (từ item đầu tiên khớp cả storeId lẫn sku)
+    const productNameMap = new Map<string, string>()
+    for (const item of orderItems) {
+      const key = `${item.order.storeId}::${item.sku}`
+      if (!productNameMap.has(key)) {
+        productNameMap.set(key, item.productName)
+      }
+    }
+
     // Calculate P&L by product
     const plByProduct = calculatePLByProduct(orderItemsForCalc)
 
     // Convert to array and sort by net profit
     const products = Array.from(plByProduct.entries())
-      .map(([sku, metrics]) => {
-        // Get product name from first matching item
-        const item = orderItems.find(i => i.sku === sku)
+      .map(([compositeKey, metrics]) => {
+        const [, ...skuParts] = compositeKey.split("::")
+        const sku = skuParts.join("::") // handle SKUs that contain "::"
         return {
           sku,
-          productName: item?.productName || sku,
+          productName: productNameMap.get(compositeKey) || sku,
           ...metrics
         }
       })

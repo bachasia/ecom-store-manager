@@ -52,20 +52,27 @@ export async function POST(req: Request) {
       select: { id: true, sku: true },
     })
 
-    const productBySku = new Map(existingProducts.map((p) => [p.sku, p.id]))
+    // Map sku → id[] để xử lý đúng khi có nhiều product cùng SKU trong store
+    const productBySku = new Map<string, string[]>()
+    for (const p of existingProducts) {
+      const ids = productBySku.get(p.sku) ?? []
+      ids.push(p.id)
+      productBySku.set(p.sku, ids)
+    }
 
     const notFoundSkus: string[] = []
-    // Map productId → new baseCost (last value wins if SKU appears twice in CSV)
     const updateMap = new Map<string, number>()
 
     for (const item of validItems) {
       const sku = String(item.sku).trim()
       const cost = parseFloat(item.baseCost)
-      const productId = productBySku.get(sku)
-      if (!productId) {
+      const productIds = productBySku.get(sku)
+      if (!productIds) {
         notFoundSkus.push(sku)
       } else {
-        updateMap.set(productId, cost)
+        for (const productId of productIds) {
+          updateMap.set(productId, cost)
+        }
       }
     }
 

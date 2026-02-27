@@ -68,8 +68,10 @@ export default function DailyDrilldownModal({
 
   if (!date) return null
 
+  // Dùng storeId làm key để phân biệt đúng khi 2 store trùng tên
+  const storeNameMap = new Map(stores.map((s) => [s.storeId, s.storeName]))
   const chartData = stores.map((s) => ({
-    name: s.storeName,
+    storeId: s.storeId,
     Revenue: s.revenue,
     "Net Profit": s.netProfit,
   }))
@@ -112,10 +114,16 @@ export default function DailyDrilldownModal({
                 <ResponsiveContainer width="100%" height={220}>
                   <BarChart data={chartData} margin={{ top: 4, right: 8, left: 0, bottom: 4 }}>
                     <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-                    <XAxis dataKey="name" style={{ fontSize: "12px" }} stroke="#9ca3af" />
+                    <XAxis
+                      dataKey="storeId"
+                      tickFormatter={(id) => storeNameMap.get(id) ?? id}
+                      style={{ fontSize: "12px" }}
+                      stroke="#9ca3af"
+                    />
                     <YAxis tickFormatter={(v) => fmtShort.format(v)} style={{ fontSize: "11px" }} stroke="#9ca3af" />
                     <Tooltip
                       formatter={(value: any, name: string | undefined) => [fmtFull.format(Number(value)), name ?? ""]}
+                      labelFormatter={(storeId: any) => storeNameMap.get(String(storeId)) ?? String(storeId)}
                       contentStyle={{
                         backgroundColor: "white",
                         border: "1px solid #e5e7eb",

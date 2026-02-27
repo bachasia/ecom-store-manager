@@ -130,7 +130,7 @@ export default function StoreComparisonChart({ data, loading = false }: StoreCom
           <Legend wrapperStyle={{ fontSize: "12px" }} />
           <Tooltip
             formatter={(value: any, name: any) => [formatCurrency(Number(value)), String(name)]}
-            labelFormatter={(storeId: string) => storeMap.get(storeId)?.storeName ?? storeId}
+            labelFormatter={(storeId: any) => storeMap.get(String(storeId))?.storeName ?? String(storeId)}
             contentStyle={{
               backgroundColor: "white",
               border: "1px solid #e5e7eb",
