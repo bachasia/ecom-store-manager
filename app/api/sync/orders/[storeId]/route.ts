@@ -19,15 +19,22 @@ export async function POST(
   try {
     const { storeId } = await params
     const { searchParams } = new URL(req.url)
-    const session = await getServerSession(authOptions)
-    
-    if (!session?.user?.id) {
+
+    // Internal cron call — bypass session auth, authenticate bằng x-cron-internal header
+    const cronSecret = process.env.CRON_SECRET
+    const isCronCall = cronSecret && req.headers.get("x-cron-internal") === cronSecret
+
+    const session = isCronCall ? null : await getServerSession(authOptions)
+
+    if (!isCronCall && !session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Get store
+    // Get store — cron call tìm theo storeId + autoSyncEnabled, user call tìm theo userId
     const store = await prisma.store.findFirst({
-      where: { id: storeId, userId: session.user.id }
+      where: isCronCall
+        ? { id: storeId, isActive: true, autoSyncEnabled: true }
+        : { id: storeId, userId: session!.user!.id }
     }) as any  // cast to any — pluginSecret field exists at runtime
 
     if (!store) {
@@ -753,6 +760,7 @@ export async function POST(
           lastSyncAt: new Date(),
           lastSyncStatus: 'success',
           lastSyncError: null,
+          lastOrderAutoSyncAt: new Date(),
         }
       })
 

@@ -70,7 +70,13 @@ model Store {
   lastSyncAt  DateTime?
   lastSyncStatus String? // 'success' | 'error' | 'in_progress'
   lastSyncError  String? @db.Text
-  
+
+  // Auto sync
+  autoSyncEnabled       Boolean   @default(false)
+  autoSyncInterval      Int       @default(60)    // phút, min=15
+  lastOrderAutoSyncAt   DateTime?
+  lastProductAutoSyncAt DateTime?
+
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   

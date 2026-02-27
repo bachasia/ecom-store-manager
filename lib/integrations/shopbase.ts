@@ -69,6 +69,7 @@ export interface ShopbaseOrder {
 export interface ShopbaseProduct {
   id: number
   title: string
+  updated_at: string  // ISO 8601 — dùng để skip-unchanged khi incremental sync
   images: Array<{
     id: number
     src: string
@@ -108,7 +109,7 @@ export class ShopbaseClient {
 
   async testConnection(): Promise<{ success: boolean; message: string }> {
     try {
-      const response = await this.client.get('/shop.json')
+      const response = await this.withRetry(() => this.client.get('/shop.json'))
       return {
         success: true,
         message: `Successfully connected to ${response.data.shop?.name || 'store'}`,
@@ -146,11 +147,11 @@ export class ShopbaseClient {
       if (params.fulfillmentStatus) queryParams.fulfillment_status = params.fulfillmentStatus
       if (params.status) queryParams.status = params.status
 
-      const response = await this.client.get('/orders.json', { params: queryParams })
-      
+      const response = await this.withRetry(() =>
+        this.client.get('/orders.json', { params: queryParams })
+      )
       // Rate limiting: wait 500ms between requests (2 req/sec)
       await this.sleep(500)
-      
       return response.data.orders || []
     } catch (error: any) {
       console.error('Shopbase getOrders error:', error.response?.data || error.message)
@@ -161,7 +162,9 @@ export class ShopbaseClient {
 
   async getOrder(orderId: number, timeoutMs = 10000): Promise<ShopbaseOrder> {
     try {
-      const response = await this.client.get(`/orders/${orderId}.json`, { timeout: timeoutMs })
+      const response = await this.withRetry(() =>
+        this.client.get(`/orders/${orderId}.json`, { timeout: timeoutMs })
+      )
       await this.sleep(500)
       return response.data.order
     } catch (error: any) {
@@ -182,9 +185,10 @@ export class ShopbaseClient {
         page: params.page || 1,
       }
 
-      const response = await this.client.get('/products.json', { params: queryParams })
+      const response = await this.withRetry(() =>
+        this.client.get('/products.json', { params: queryParams })
+      )
       await this.sleep(500)
-      
       return response.data.products || []
     } catch (error: any) {
       console.error('Shopbase getProducts error:', error.response?.data || error.message)
@@ -213,26 +217,41 @@ export class ShopbaseClient {
    * Dùng cho store có nhiều sản phẩm để tránh timeout và OOM.
    */
   async streamAllProducts(options: {
-    onPage: (products: ShopbaseProduct[], pageInfo: { page: number; fetched: number }) => Promise<void>
+    onPage: (products: ShopbaseProduct[], pageInfo: { page: number; fetched: number; skipped: number }) => Promise<void>
     onProgress?: (fetched: number) => void
     pageSize?: number
-  }): Promise<{ totalFetched: number }> {
+    /**
+     * Nếu truyền vào, các product có updated_at <= sinceDate sẽ được bỏ qua
+     * (không gọi onPage cho chúng). ShopBase không hỗ trợ filter updated_at_min
+     * cho products nên ta vẫn phải fetch tất cả pages nhưng skip ở client.
+     */
+    sinceDate?: Date
+  }): Promise<{ totalFetched: number; totalSkipped: number }> {
     const PAGE_SIZE = options.pageSize ?? 50
     let page = 1
     let totalFetched = 0
+    let totalSkipped = 0
 
     while (true) {
       const products = await this.getProducts({ page, limit: PAGE_SIZE })
       totalFetched += products.length
 
-      await options.onPage(products, { page, fetched: totalFetched })
+      // Lọc bỏ products không thay đổi kể từ sinceDate
+      const toProcess = options.sinceDate
+        ? products.filter(p => new Date(p.updated_at) > options.sinceDate!)
+        : products
+      totalSkipped += products.length - toProcess.length
+
+      if (toProcess.length > 0) {
+        await options.onPage(toProcess, { page, fetched: totalFetched, skipped: totalSkipped })
+      }
       options.onProgress?.(totalFetched)
 
       if (products.length < PAGE_SIZE) break
       page++
     }
 
-    return { totalFetched }
+    return { totalFetched, totalSkipped }
   }
 
   async getAllOrders(params: {
@@ -256,6 +275,46 @@ export class ShopbaseClient {
     }
 
     return allOrders
+  }
+
+  /**
+   * Retry wrapper — tối đa maxAttempts lần, exponential backoff.
+   * - 429: đọc Retry-After header, chờ đúng thời gian yêu cầu
+   * - 5xx: backoff 1s → 2s → 4s
+   * - 401/403/404: không retry, throw ngay
+   */
+  private async withRetry<T>(
+    fn: () => Promise<T>,
+    maxAttempts = 3,
+    baseDelayMs = 1000
+  ): Promise<T> {
+    let lastError: any
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return await fn()
+      } catch (error: any) {
+        lastError = error
+        const status = error.response?.status
+
+        // Không retry với lỗi auth hoặc not found
+        if (status === 401 || status === 403 || status === 404) throw error
+
+        if (attempt === maxAttempts) break
+
+        if (status === 429) {
+          // Đọc Retry-After header (giây), fallback về 10s
+          const retryAfter = parseInt(error.response?.headers?.['retry-after'] || '10', 10)
+          console.warn(`[shopbase] 429 Too Many Requests — waiting ${retryAfter}s before retry ${attempt + 1}/${maxAttempts}`)
+          await this.sleep(retryAfter * 1000)
+        } else {
+          // 5xx hoặc network error — exponential backoff
+          const delay = baseDelayMs * Math.pow(2, attempt - 1)
+          console.warn(`[shopbase] Error (status=${status ?? 'network'}) — backoff ${delay}ms before retry ${attempt + 1}/${maxAttempts}`)
+          await this.sleep(delay)
+        }
+      }
+    }
+    throw lastError
   }
 
   private sleep(ms: number): Promise<void> {

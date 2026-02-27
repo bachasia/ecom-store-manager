@@ -17,14 +17,21 @@ export async function POST(
 ) {
   try {
     const { storeId } = await params
-    const session = await getServerSession(authOptions)
 
-    if (!session?.user?.id) {
+    // Internal cron call — bypass session auth
+    const cronSecret = process.env.CRON_SECRET
+    const isCronCall = cronSecret && req.headers.get("x-cron-internal") === cronSecret
+
+    const session = isCronCall ? null : await getServerSession(authOptions)
+
+    if (!isCronCall && !session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
     const store = await prisma.store.findFirst({
-      where: { id: storeId, userId: session.user.id }
+      where: isCronCall
+        ? { id: storeId, isActive: true, autoSyncEnabled: true }
+        : { id: storeId, userId: session!.user!.id }
     }) as any  // cast to any — pluginSecret field exists at runtime
 
     if (!store) {
@@ -189,10 +196,28 @@ export async function POST(
 
         const client = new ShopbaseClient(store.apiUrl, store.apiKey, store.apiSecret)
 
+        // Incremental: dùng lastProductAutoSyncAt để skip products không đổi.
+        // ShopBase API không hỗ trợ updated_at_min cho products nên vẫn fetch
+        // tất cả pages nhưng bỏ qua ở client-side dựa trên product.updated_at.
+        const searchParams = new URL(req.url).searchParams
+        const forceFull = ["1", "true", "yes"].includes((searchParams.get("full") || "").toLowerCase())
+        const existingProductCount = await prisma.product.count({ where: { storeId: store.id } })
+        const sinceDate = (forceFull || existingProductCount === 0)
+          ? undefined
+          : (store.lastProductAutoSyncAt ? new Date(store.lastProductAutoSyncAt) : undefined)
+
+        if (sinceDate) {
+          skipDeactivate = true // incremental — không biết product nào bị xóa
+          console.info(`[sync:products][shopbase] incremental mode since=${sinceDate.toISOString()}`)
+        } else {
+          console.info(`[sync:products][shopbase] full sync mode`)
+        }
+
         // Stream từng trang thay vì load tất cả vào RAM (tránh OOM và timeout)
-        await client.streamAllProducts({
-          onPage: async (products, { page, fetched }) => {
-            console.info(`[sync:products][shopbase] page=${page} fetched=${fetched} db_written=${productsCreated + productsUpdated + productsSkipped}`)
+        const { totalFetched, totalSkipped } = await client.streamAllProducts({
+          sinceDate,
+          onPage: async (products, { page, fetched, skipped }) => {
+            console.info(`[sync:products][shopbase] page=${page} fetched=${fetched} api_skipped=${skipped} db_written=${productsCreated + productsUpdated + productsSkipped}`)
 
             for (const product of products) {
               if (await isCancelled()) throw new CancelledError()
@@ -228,6 +253,7 @@ export async function POST(
             console.info(`[sync:products][shopbase] total fetched=${fetched}`)
           },
         })
+        console.info(`[sync:products][shopbase] done totalFetched=${totalFetched} totalSkipped=${totalSkipped}`)
 
       // ─── WooCommerce ─────────────────────────────────────────────────────
       } else if (store.platform === 'woocommerce') {
@@ -430,7 +456,12 @@ export async function POST(
 
       await prisma.store.update({
         where: { id: store.id },
-        data: { lastSyncAt: new Date(), lastSyncStatus: 'success', lastSyncError: null }
+        data: {
+          lastSyncAt: new Date(),
+          lastSyncStatus: 'success',
+          lastSyncError: null,
+          lastProductAutoSyncAt: new Date(),
+        }
       })
 
       const syncMode = skipDeactivate ? 'incremental' : 'full'

@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react"
 import { useTranslations } from "next-intl"
 import PlatformSelect from "@/components/ui/platform-select"
+import AutoSyncSettings from "@/components/stores/AutoSyncSettings"
 
 interface Store {
   id: string
@@ -669,6 +670,11 @@ export default function StoresPage() {
                         <span className="ml-2 text-red-600 font-medium">{t("error")}</span>
                       )}
                     </div>
+                  )}
+
+                  {/* Auto Sync Settings — chỉ ShopBase */}
+                  {store.platform === "shopbase" && (
+                    <AutoSyncSettings storeId={store.id} platform={store.platform} />
                   )}
                 </div>
 
