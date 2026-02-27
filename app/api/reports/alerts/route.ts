@@ -129,12 +129,12 @@ export async function GET(req: Request) {
 
     const dayStoreEntries = Array.from(dayStoreMap.values())
 
-    // --- 1. Negative ROI days ---
+    // --- 1. Negative Margin days ---
     const negativeROI = dayStoreEntries
       .filter((d) => d.netProfit < 0)
       .map((d) => {
         const store = storeMap.get(d.storeId)
-        const roi =
+        const margin =
           d.revenue > 0 ? ((d.netProfit / d.revenue) * 100) : -100
         return {
           date: d.date,
@@ -143,10 +143,10 @@ export async function GET(req: Request) {
           revenue: Math.round(d.revenue * 100) / 100,
           adsCost: Math.round(d.adsCost * 100) / 100,
           netProfit: Math.round(d.netProfit * 100) / 100,
-          roi: Math.round(roi * 100) / 100,
+          roi: Math.round(margin * 100) / 100, // field name giữ nguyên để không break interface
         }
       })
-      .sort((a, b) => a.roi - b.roi) // Worst ROI first
+      .sort((a, b) => a.roi - b.roi) // Worst margin first
 
     // --- 2. Low ROAS days (only when adsCost > 0) ---
     const lowROAS = dayStoreEntries
@@ -170,33 +170,32 @@ export async function GET(req: Request) {
       })
       .sort((a, b) => a.roas - b.roas) // Lowest ROAS first
 
-    // --- 3. Missing COGS (products with orders but baseCost = 0 or null) ---
-    // Find products with baseCost = 0 that have OrderItems in this period
-    const orderItemsWithMissingCOGS = await prisma.orderItem.findMany({
-      where: {
-        order: orderWhere,
-        product: {
-          storeId: { in: storeIds },
-          baseCost: { lte: 0 },
+    // --- 3. Missing COGS ---
+    // Case A: linked products with baseCost = 0
+    // Case B: order items with no linked product (productId IS NULL) — COGS completely unknown
+    const [orderItemsLinkedZeroCOGS, orderItemsUnlinked] = await Promise.all([
+      prisma.orderItem.findMany({
+        where: {
+          order: orderWhere,
+          product: { storeId: { in: storeIds }, baseCost: { lte: 0 } },
         },
-      },
-      select: {
-        sku: true,
-        productName: true,
-        quantity: true,
-        total: true,
-        product: {
-          select: {
-            id: true,
-            baseCost: true,
-            storeId: true,
-          },
+        select: {
+          sku: true, productName: true, quantity: true, total: true,
+          order: { select: { storeId: true } },
+          product: { select: { id: true, baseCost: true, storeId: true } },
         },
-      },
-    })
+      }),
+      prisma.orderItem.findMany({
+        where: { order: orderWhere, productId: null },
+        select: {
+          sku: true, productName: true, quantity: true, total: true,
+          order: { select: { storeId: true } },
+        },
+      }),
+    ])
 
-    // Aggregate by (productId, sku) — group missing COGS items
-    type SkuKey = string // "productId::sku"
+    // Aggregate by (productId|"unlinked::sku", sku)
+    type SkuKey = string // "productId::sku" or "unlinked::storeId::sku"
     const missingCOGSMap = new Map<
       SkuKey,
       {
@@ -209,7 +208,7 @@ export async function GET(req: Request) {
       }
     >()
 
-    for (const item of orderItemsWithMissingCOGS) {
+    for (const item of orderItemsLinkedZeroCOGS) {
       if (!item.product) continue
       const key = `${item.product.id}::${item.sku}`
       const existing = missingCOGSMap.get(key) || {
@@ -217,6 +216,22 @@ export async function GET(req: Request) {
         sku: item.sku,
         productName: item.productName,
         storeId: item.product.storeId,
+        unitsSold: 0,
+        revenueAtRisk: 0,
+      }
+      existing.unitsSold += item.quantity
+      existing.revenueAtRisk += Number(item.total)
+      missingCOGSMap.set(key, existing)
+    }
+
+    for (const item of orderItemsUnlinked) {
+      const storeId = item.order.storeId
+      const key = `unlinked::${storeId}::${item.sku}`
+      const existing = missingCOGSMap.get(key) || {
+        productId: "",
+        sku: item.sku,
+        productName: item.productName,
+        storeId,
         unitsSold: 0,
         revenueAtRisk: 0,
       }

@@ -203,9 +203,9 @@ export default function AlertsPanel({ data, loading = false, basePath = "/dashbo
         )}
       </div>
 
-      {/* Section 1: Negative ROI */}
+      {/* Section 1: Negative Margin */}
       <Section
-        title="Negative ROI Days"
+        title="Negative Margin Days"
         count={summary.negativeROIDays}
         color="red"
         icon={<TrendingDown className="h-5 w-5" />}
@@ -228,7 +228,7 @@ export default function AlertsPanel({ data, loading = false, basePath = "/dashbo
                   <p className="text-sm font-semibold text-red-600">{fmtDec.format(alert.netProfit)}</p>
                 </div>
                 <div className="text-right">
-                  <p className="text-xs text-gray-400">ROI</p>
+                  <p className="text-xs text-gray-400">Margin</p>
                   <p className="text-sm font-semibold text-red-600">{alert.roi.toFixed(1)}%</p>
                 </div>
                 <Link
