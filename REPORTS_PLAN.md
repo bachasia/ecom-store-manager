@@ -3,7 +3,7 @@
 **Feature**: Section 9.2 — Báo Cáo Chi Tiết  
 **Khởi tạo**: 2026-02-26  
 **Cập nhật lần cuối**: 2026-02-26  
-**Status tổng thể**: 🔄 ĐANG TRIỂN KHAI — Phase 1 DONE ✅
+**Status tổng thể**: 🔄 ĐANG TRIỂN KHAI — Phase 1 ✅ Phase 2 ✅
 
 ---
 
@@ -25,7 +25,7 @@
 
 ```
 Phase 1 — API Layer          [✅] 5/5  endpoints  ← DONE
-Phase 2 — UI Components      [ ] 0/6  components
+Phase 2 — UI Components      [✅] 6/6  components ← DONE
 Phase 3 — Pages & Navigation [ ] 0/3  tasks
 Phase 4 — Settings Extension [ ] 0/1  task
 ```
@@ -201,7 +201,7 @@ Phase 4 — Settings Extension [ ] 0/1  task
 ## PHASE 2 — UI COMPONENTS
 
 ### 2.1 `DailyReportTable`
-**Status**: ⏳ PENDING  
+**Status**: ✅ DONE  
 **File**: `components/reports/DailyReportTable.tsx`  
 **Ước tính**: ~3h
 
@@ -220,7 +220,7 @@ Phase 4 — Settings Extension [ ] 0/1  task
 ---
 
 ### 2.2 `DailyDrilldownModal`
-**Status**: ⏳ PENDING  
+**Status**: ✅ DONE  
 **File**: `components/reports/DailyDrilldownModal.tsx`  
 **Ước tính**: ~2h
 
@@ -237,7 +237,7 @@ Phase 4 — Settings Extension [ ] 0/1  task
 ---
 
 ### 2.3 `SKUReportTable`
-**Status**: ⏳ PENDING  
+**Status**: ✅ DONE  
 **File**: `components/reports/SKUReportTable.tsx`  
 **Ước tính**: ~3h
 
@@ -257,7 +257,7 @@ Phase 4 — Settings Extension [ ] 0/1  task
 ---
 
 ### 2.4 `StoreComparisonTable`
-**Status**: ⏳ PENDING  
+**Status**: ✅ DONE  
 **File**: `components/reports/StoreComparisonTable.tsx`  
 **Ước tính**: ~2h
 
@@ -274,7 +274,7 @@ Phase 4 — Settings Extension [ ] 0/1  task
 ---
 
 ### 2.5 `StoreTrendChart`
-**Status**: ⏳ PENDING  
+**Status**: ✅ DONE  
 **File**: `components/reports/StoreTrendChart.tsx`  
 **Ước tính**: ~2h
 
@@ -292,7 +292,7 @@ Phase 4 — Settings Extension [ ] 0/1  task
 ---
 
 ### 2.6 `AlertsPanel`
-**Status**: ⏳ PENDING  
+**Status**: ✅ DONE  
 **File**: `components/reports/AlertsPanel.tsx`  
 **Ước tính**: ~4h
 
@@ -528,6 +528,7 @@ const dailyData = await prisma.$queryRaw`
 |------|-----------|----------|
 | 2026-02-26 | Tạo file | Khởi tạo plan đầy đủ cho section 9.2 |
 | 2026-02-26 | Phase 1 DONE ✅ | Tạo 5 API endpoints: `/api/settings/alerts`, `/api/reports/alerts`, `/api/reports/daily`, `/api/reports/sku`, `/api/reports/store` |
+| 2026-02-27 | Phase 2 DONE ✅ | Tạo 6 UI components: `DailyReportTable`, `DailyDrilldownModal`, `SKUReportTable`, `StoreComparisonTable`, `StoreTrendChart`, `AlertsPanel` + i18n keys (en/vi) |
 
 ---
 
