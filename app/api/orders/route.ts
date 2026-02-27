@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
+import { calculateOrderPL } from "@/lib/calculations/pnl"
 
 // GET /api/orders - List orders with filters
 export async function GET(req: Request) {
@@ -111,8 +112,28 @@ export async function GET(req: Request) {
       take: limit,
     })
 
+    // Calculate profit/margin live from raw fields so the list always reflects
+    // the latest COGS and transaction fee data without requiring a manual recalculate.
+    // allocatedAdsCost is still read from DB (populated by recalculate).
+    const ordersWithPL = orders.map(order => {
+      const { grossProfit, netProfit, profitMargin } = calculateOrderPL({
+        id: order.id,
+        total: Number(order.total),
+        refundAmount: Number(order.refundAmount),
+        totalCOGS: Number(order.totalCOGS),
+        transactionFee: Number(order.transactionFee),
+        allocatedAdsCost: Number(order.allocatedAdsCost),
+      })
+      return {
+        ...order,
+        grossProfit,
+        netProfit,
+        profitMargin,
+      }
+    })
+
     return NextResponse.json({
-      orders,
+      orders: ordersWithPL,
       pagination: {
         page,
         limit,
