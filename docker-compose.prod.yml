@@ -4,8 +4,10 @@ services:
   # PostgreSQL Database
   postgres:
     image: postgres:16-alpine
-    container_name: pnl-postgres-prod
+    container_name: storepilot-postgres
     restart: always
+    env_file:
+      - .env
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -26,8 +28,10 @@ services:
   # Redis
   redis:
     image: redis:7-alpine
-    container_name: pnl-redis-prod
+    container_name: storepilot-redis
     restart: always
+    env_file:
+      - .env
     command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     # Không expose port ra ngoài — chỉ accessible nội bộ Docker network
     volumes:
@@ -45,6 +49,8 @@ services:
     image: bachasia/storepilot:latest
     container_name: dtc-storepilot
     restart: always
+    env_file:
+      - .env
     ports:
       - "3200:3000"
     environment:

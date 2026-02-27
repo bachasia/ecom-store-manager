@@ -22,7 +22,6 @@ ARG NEXTAUTH_URL="http://localhost:3000"
 ENV DATABASE_URL=$DATABASE_URL
 ENV NEXTAUTH_URL=$NEXTAUTH_URL
 ENV NEXT_TELEMETRY_DISABLED=1
-ENV NODE_ENV=production
 
 # Re-copy package files to ensure latest lock file is used
 COPY package*.json ./
@@ -42,7 +41,7 @@ COPY prisma ./prisma/
 RUN npx prisma generate
 
 # Build Next.js application (force webpack in Docker for stability)
-RUN NEXT_DISABLE_SWC_NATIVE_BINARY=1 npx next build --webpack
+RUN NODE_ENV=production NEXT_DISABLE_SWC_NATIVE_BINARY=1 npx next build --webpack
 
 # Production stage
 FROM node:20-bookworm AS runner
