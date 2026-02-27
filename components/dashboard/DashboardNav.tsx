@@ -6,6 +6,7 @@ import { signOut } from "next-auth/react"
 import Link from "next/link"
 import { useTranslations } from 'next-intl'
 import LanguageSwitcher from "@/components/language-switcher"
+import ExchangeRate from "@/components/ui/exchange-rate"
 import { getAlertCount, getCurrentMonthToDateRange } from "@/lib/reports/helpers"
 import { 
   LayoutDashboard, 
@@ -101,6 +102,11 @@ export default function DashboardNav({ userEmail }: { userEmail: string }) {
           )
         })}
       </nav>
+
+      {/* Exchange Rate */}
+      <div className="px-3 pb-3">
+        <ExchangeRate />
+      </div>
 
       <div className="border-t border-gray-100 p-4 space-y-3">
         <LanguageSwitcher />

@@ -171,6 +171,7 @@ export async function GET(req: Request) {
         productName: agg.productName,
         storeId: agg.storeId,
         storeName: store?.name ?? "Unknown",
+        platform: store?.platform ?? "",
         unitsSold: agg.unitsSold,
         ordersCount: agg.orderIds.size,
         revenue: Math.round(agg.revenue * 100) / 100,

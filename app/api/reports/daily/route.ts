@@ -102,6 +102,7 @@ export async function GET(req: Request) {
     interface StoreMetrics extends DayMetrics {
       storeId: string
       storeName: string
+      platform: string
     }
 
     const dayMap = new Map<DayKey, DayMetrics>()
@@ -144,6 +145,7 @@ export async function GET(req: Request) {
           date,
           storeId: order.storeId,
           storeName: storeMap.get(order.storeId)?.name ?? "Unknown",
+          platform: storeMap.get(order.storeId)?.platform ?? "",
           orders: 0,
           revenue: 0,
           cogs: 0,
@@ -195,6 +197,7 @@ export async function GET(req: Request) {
               return {
                 storeId: ds.storeId,
                 storeName: ds.storeName,
+                platform: ds.platform,
                 orders: ds.orders,
                 revenue: Math.round(ds.revenue * 100) / 100,
                 cogs: Math.round(ds.cogs * 100) / 100,

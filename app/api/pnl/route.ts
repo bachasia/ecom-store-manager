@@ -22,7 +22,7 @@ export async function GET(req: Request) {
     // Build query filters
     const where: any = {}
 
-    let accessibleStores: Array<{ id: string; name: string }> = []
+    let accessibleStores: Array<{ id: string; name: string; platform: string }> = []
 
     if (storeId) {
       // Verify store belongs to user
@@ -34,6 +34,7 @@ export async function GET(req: Request) {
         select: {
           id: true,
           name: true,
+          platform: true,
         },
       })
 
@@ -42,7 +43,7 @@ export async function GET(req: Request) {
       }
 
       where.storeId = storeId
-      accessibleStores = [{ id: store.id, name: store.name }]
+      accessibleStores = [{ id: store.id, name: store.name, platform: store.platform }]
     } else {
       // Get all user's stores
       const userStores = await prisma.store.findMany({
@@ -50,6 +51,7 @@ export async function GET(req: Request) {
         select: {
           id: true,
           name: true,
+          platform: true,
         },
       })
 
@@ -197,16 +199,18 @@ export async function GET(req: Request) {
         byStore.set(order.storeId, bucket)
       }
 
-      const storeNameById = new Map(accessibleStores.map((store) => [store.id, store.name]))
+      const storeInfoById = new Map(accessibleStores.map((store) => [store.id, { name: store.name, platform: store.platform }]))
 
       result = {
         groupBy: "store",
         data: Array.from(byStore.entries())
           .map(([id, storeOrders]) => {
             const metrics = calculateAggregatePL(storeOrders)
+            const storeInfo = storeInfoById.get(id)
             return {
               storeId: id,
-              storeName: storeNameById.get(id) || "Unknown",
+              storeName: storeInfo?.name || "Unknown",
+              platform: storeInfo?.platform || "",
               orderCount: storeOrders.length,
               ...metrics,
             }

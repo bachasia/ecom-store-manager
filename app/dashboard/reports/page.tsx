@@ -261,10 +261,7 @@ export default function ReportsPage() {
     { value: "allTime" as DatePreset, label: tDash("allTime") },
   ]
 
-  const storeOptions = [
-    { value: "", label: tDash("allStores") },
-    ...stores.map((s) => ({ value: s.id, label: s.name, platform: s.platform })),
-  ]
+  const storeOptions = stores.map((s) => ({ value: s.id, label: s.name, platform: s.platform }))
 
   const tabs: { id: TabId; label: string }[] = [
     { id: "daily", label: t("tabs.daily") },

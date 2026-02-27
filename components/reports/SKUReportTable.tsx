@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { ArrowUp, ArrowDown, ArrowUpDown, TrendingDown, Star } from "lucide-react"
+import PlatformIcon from "@/components/ui/platform-icon"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -10,6 +11,7 @@ export interface SKURow {
   productName: string
   storeId: string
   storeName: string
+  platform: string
   unitsSold: number
   ordersCount: number
   revenue: number
@@ -233,7 +235,12 @@ export default function SKUReportTable({ data, loading = false }: SKUReportTable
                   </td>
 
                   {/* Store */}
-                  <td className="px-3 py-3 whitespace-nowrap text-gray-600 text-xs">{row.storeName}</td>
+                  <td className="px-3 py-3 whitespace-nowrap text-gray-600 text-xs">
+                    <span className="flex items-center gap-1.5">
+                      <PlatformIcon platform={row.platform} size={14} />
+                      {row.storeName}
+                    </span>
+                  </td>
 
                   {/* Units Sold */}
                   <td className="px-3 py-3 text-right text-gray-700">

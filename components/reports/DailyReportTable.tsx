@@ -2,12 +2,14 @@
 
 import { useState, Fragment } from "react"
 import { ChevronDown, ChevronRight, TrendingUp, TrendingDown, Minus } from "lucide-react"
+import PlatformIcon from "@/components/ui/platform-icon"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface StoreDrilldown {
   storeId: string
   storeName: string
+  platform: string
   orders: number
   revenue: number
   cogs: number
@@ -104,7 +106,11 @@ function StoreSubRow({ store }: { store: StoreDrilldown }) {
   return (
     <tr className="border-t border-gray-100 bg-indigo-50/30">
       <td className="py-2 pl-12 pr-3 text-sm text-indigo-700 font-medium whitespace-nowrap">
-        ↳ {store.storeName}
+        <span className="flex items-center gap-1.5">
+          ↳
+          <PlatformIcon platform={store.platform} size={14} />
+          {store.storeName}
+        </span>
       </td>
       <td className="px-3 py-2 text-right text-sm text-gray-600">{store.orders}</td>
       <td className="px-3 py-2 text-right text-sm text-gray-700">{fmt.format(store.revenue)}</td>

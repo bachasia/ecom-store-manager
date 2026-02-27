@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react"
 import { ArrowUp, ArrowDown, ArrowUpDown } from "lucide-react"
+import PlatformIcon from "@/components/ui/platform-icon"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -52,13 +53,6 @@ const fmtDec = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
 })
 
-function getPlatformBadge(platform: string) {
-  if (platform === "shopbase")
-    return <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">ShopBase</span>
-  if (platform === "woocommerce")
-    return <span className="rounded-full bg-purple-100 px-2 py-0.5 text-xs font-medium text-purple-700">WooCommerce</span>
-  return <span className="rounded-full bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-600">{platform}</span>
-}
 
 function Skeleton() {
   return (
@@ -128,7 +122,6 @@ export default function StoreComparisonTable({ data, loading = false }: StoreCom
         <thead>
           <tr className="border-b border-gray-100 bg-gray-50/80">
             <th className="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">Store</th>
-            <th className="px-3 py-3 text-left font-semibold text-gray-700">Platform</th>
             <ThBtn field="orders" label="Orders" />
             <ThBtn field="revenue" label="Revenue" />
             <ThBtn field="cogs" label="COGS" />
@@ -143,8 +136,12 @@ export default function StoreComparisonTable({ data, loading = false }: StoreCom
         <tbody className="divide-y divide-gray-100">
           {sorted.map((row) => (
             <tr key={row.storeId} className="transition-colors hover:bg-gray-50">
-              <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">{row.storeName}</td>
-              <td className="px-3 py-3">{getPlatformBadge(row.platform)}</td>
+              <td className="px-4 py-3 font-medium text-gray-900 whitespace-nowrap">
+                <span className="flex items-center gap-2">
+                  <PlatformIcon platform={row.platform} size={16} />
+                  {row.storeName}
+                </span>
+              </td>
               <td className="px-3 py-3 text-right text-gray-700">{row.orders.toLocaleString()}</td>
               <td className="px-3 py-3 text-right font-medium text-gray-900">{fmt.format(row.revenue)}</td>
               <td className="px-3 py-3 text-right text-gray-500">{fmt.format(row.cogs)}</td>
