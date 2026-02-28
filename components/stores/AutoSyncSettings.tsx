@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { RefreshCw } from "lucide-react"
+import { RefreshCw, Settings } from "lucide-react"
 import { useTranslations } from "next-intl"
 
 interface AutoSyncSettingsProps {
@@ -40,6 +40,7 @@ export default function AutoSyncSettings({ storeId, platform }: AutoSyncSettings
   const [loading, setLoading]   = useState(true)
   const [saving, setSaving]     = useState(false)
   const [saved, setSaved]       = useState(false)
+  const [expanded, setExpanded] = useState(false)
 
   useEffect(() => {
     fetch(`/api/stores/${storeId}/auto-sync`)
@@ -115,7 +116,7 @@ export default function AutoSyncSettings({ storeId, platform }: AutoSyncSettings
   return (
     <div className="mt-4 pt-4 border-t border-gray-100">
       {/* Header row */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <RefreshCw className="w-4 h-4 text-indigo-500" />
           <span className="text-sm font-semibold text-gray-800">{t("title")}</span>
@@ -123,24 +124,40 @@ export default function AutoSyncSettings({ storeId, platform }: AutoSyncSettings
           {saved  && <span className="text-xs text-green-500">{t("saved")}</span>}
         </div>
 
-        {/* Toggle */}
-        <button
-          onClick={() => handleToggle(!settings.autoSyncEnabled)}
-          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-            settings.autoSyncEnabled ? "bg-indigo-600" : "bg-gray-200"
-          }`}
-          aria-label="Toggle auto sync"
-        >
-          <span
-            className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
-              settings.autoSyncEnabled ? "translate-x-6" : "translate-x-1"
+        <div className="flex items-center gap-2">
+          {/* Settings button — expand/collapse config */}
+          <button
+            onClick={() => setExpanded(v => !v)}
+            title="Settings"
+            className={`p-1.5 rounded-lg transition-colors ${
+              expanded
+                ? "text-indigo-600 bg-indigo-50"
+                : "text-gray-400 hover:text-gray-600 hover:bg-gray-100"
             }`}
-          />
-        </button>
+          >
+            <Settings className="w-4 h-4" />
+          </button>
+
+          {/* Toggle */}
+          <button
+            onClick={() => handleToggle(!settings.autoSyncEnabled)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+              settings.autoSyncEnabled ? "bg-indigo-600" : "bg-gray-200"
+            }`}
+            aria-label="Toggle auto sync"
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform ${
+                settings.autoSyncEnabled ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+        </div>
       </div>
 
-      {settings.autoSyncEnabled && (
-        <div className="space-y-3">
+      {/* Expandable settings — only shown when gear icon is clicked */}
+      {expanded && (
+        <div className="mt-3 space-y-3">
           {/* Interval picker */}
           <div className="flex items-center gap-2">
             <span className="text-xs text-gray-500 shrink-0">{t("syncOrdersEvery")}</span>

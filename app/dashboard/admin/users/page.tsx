@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { SystemRole } from "@prisma/client"
-import { Shield, Trash2, ChevronDown } from "lucide-react"
+import { Shield, Trash2, ChevronDown, UserPlus, X } from "lucide-react"
 
 interface User {
   id: string
@@ -23,12 +23,154 @@ const ROLE_COLORS: Record<SystemRole, string> = {
   USER: "bg-gray-100 text-gray-700",
 }
 
+// ── Add User Modal ────────────────────────────────────────────────────────────
+
+interface AddUserModalProps {
+  onClose: () => void
+  onSuccess: () => void
+}
+
+function AddUserModal({ onClose, onSuccess }: AddUserModalProps) {
+  const [form, setForm] = useState<{ name: string; email: string; password: string; systemRole: SystemRole }>({
+    name: "", email: "", password: "", systemRole: SystemRole.USER,
+  })
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault()
+    setError(null)
+    setSaving(true)
+    try {
+      const res = await fetch("/api/admin/users", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || "Failed to create user")
+        return
+      }
+      onSuccess()
+      onClose()
+    } catch {
+      setError("An error occurred")
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <div className="flex items-center gap-2">
+            <UserPlus className="h-5 w-5 text-indigo-600" />
+            <h2 className="text-lg font-semibold text-gray-900">Add New User</h2>
+          </div>
+          <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="px-6 py-5 space-y-4">
+          {error && (
+            <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-4 py-2.5">
+              {error}
+            </div>
+          )}
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Name
+            </label>
+            <input
+              type="text"
+              value={form.name}
+              onChange={(e) => setForm(f => ({ ...f, name: e.target.value }))}
+              placeholder="Full name"
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Email <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="email"
+              required
+              value={form.email}
+              onChange={(e) => setForm(f => ({ ...f, email: e.target.value }))}
+              placeholder="user@example.com"
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              Password <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="password"
+              required
+              minLength={6}
+              value={form.password}
+              onChange={(e) => setForm(f => ({ ...f, password: e.target.value }))}
+              placeholder="Min. 6 characters"
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">
+              System Role
+            </label>
+            <select
+              value={form.systemRole}
+              onChange={(e) => setForm(f => ({ ...f, systemRole: e.target.value as SystemRole }))}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition bg-white"
+            >
+              {Object.values(SystemRole).map((role) => (
+                <option key={role} value={role}>{ROLE_LABELS[role]}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={saving}
+              className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 text-sm font-semibold text-white hover:shadow-md disabled:opacity-60 transition-all"
+            >
+              {saving ? "Creating..." : "Create User"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
+// ── Main Page ─────────────────────────────────────────────────────────────────
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [updating, setUpdating] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<string | null>(null)
+  const [showAddModal, setShowAddModal] = useState(false)
 
   async function fetchUsers() {
     setLoading(true)
@@ -84,7 +226,7 @@ export default function AdminUsersPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600" />
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600" />
       </div>
     )
   }
@@ -99,16 +241,27 @@ export default function AdminUsersPage() {
 
   return (
     <div className="max-w-5xl mx-auto">
-      <div className="mb-8 flex items-center gap-3">
-        <Shield className="h-6 w-6 text-purple-600" />
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
-            {users.length} user{users.length !== 1 ? "s" : ""} in the system
-          </p>
+      {/* Header */}
+      <div className="mb-8 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <Shield className="h-6 w-6 text-purple-600" />
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
+            <p className="text-sm text-gray-500 mt-0.5">
+              {users.length} user{users.length !== 1 ? "s" : ""} in the system
+            </p>
+          </div>
         </div>
+        <button
+          onClick={() => setShowAddModal(true)}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all"
+        >
+          <UserPlus className="h-4 w-4" />
+          Add User
+        </button>
       </div>
 
+      {/* Table */}
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
         <table className="w-full text-sm">
           <thead>
@@ -133,7 +286,7 @@ export default function AdminUsersPage() {
                       value={user.systemRole}
                       disabled={!!updating}
                       onChange={(e) => handleRoleChange(user.id, e.target.value as SystemRole)}
-                      className={`appearance-none pr-7 pl-2.5 py-1 rounded-full text-xs font-medium border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-500 ${ROLE_COLORS[user.systemRole]}`}
+                      className={`appearance-none pr-7 pl-2.5 py-1 rounded-full text-xs font-medium border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 ${ROLE_COLORS[user.systemRole]}`}
                     >
                       {Object.values(SystemRole).map((role) => (
                         <option key={role} value={role}>{ROLE_LABELS[role]}</option>
@@ -165,6 +318,14 @@ export default function AdminUsersPage() {
           <div className="text-center py-12 text-gray-400">No users found</div>
         )}
       </div>
+
+      {/* Add User Modal */}
+      {showAddModal && (
+        <AddUserModal
+          onClose={() => setShowAddModal(false)}
+          onSuccess={fetchUsers}
+        />
+      )}
     </div>
   )
 }
