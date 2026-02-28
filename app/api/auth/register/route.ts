@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { hash } from "bcryptjs"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
+import { SystemRole } from "@prisma/client"
 
 const registerSchema = z.object({
   email: z.string().email("Invalid email"),
@@ -46,12 +47,16 @@ export async function POST(req: Request) {
     // Hash password
     const hashedPassword = await hash(password, 12)
 
+    // First user becomes SUPER_ADMIN, subsequent users are regular USER
+    const isFirstUser = userCount === 0
+
     // Create user
     const user = await prisma.user.create({
       data: {
         email,
         password: hashedPassword,
         name: name || null,
+        systemRole: isFirstUser ? SystemRole.SUPER_ADMIN : SystemRole.USER,
       }
     })
 

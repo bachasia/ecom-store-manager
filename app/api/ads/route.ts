@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
+import { getStoreIdsWithPermission, requireStorePermission } from "@/lib/permissions"
 
 const adsCostSchema = z.object({
   storeId: z.string(),
@@ -32,26 +33,14 @@ export async function GET(req: Request) {
     const where: any = {}
 
     if (storeId) {
-      // Verify user owns this store
-      const store = await prisma.store.findFirst({
-        where: {
-          id: storeId,
-          userId: session.user.id
-        }
-      })
-
-      if (!store) {
-        return NextResponse.json({ error: "Store not found" }, { status: 404 })
-      }
-
+      // Verify user has access to this store
+      const denied = await requireStorePermission(session.user.id, storeId, 'view_dashboard')
+      if (denied) return denied
       where.storeId = storeId
     } else {
-      // Get all stores for this user
-      const stores = await prisma.store.findMany({
-        where: { userId: session.user.id },
-        select: { id: true }
-      })
-      where.storeId = { in: stores.map(s => s.id) }
+      // Get all accessible stores
+      const stores = await getStoreIdsWithPermission(session.user.id, 'view_dashboard')
+      where.storeId = { in: stores }
     }
 
     if (from) {
@@ -98,17 +87,9 @@ export async function POST(req: Request) {
     const body = await req.json()
     const validatedData = adsCostSchema.parse(body)
 
-    // Verify user owns this store
-    const store = await prisma.store.findFirst({
-      where: {
-        id: validatedData.storeId,
-        userId: session.user.id
-      }
-    })
-
-    if (!store) {
-      return NextResponse.json({ error: "Store not found" }, { status: 404 })
-    }
+    // Verify user has manage_ads permission on this store
+    const denied = await requireStorePermission(session.user.id, validatedData.storeId, 'manage_ads')
+    if (denied) return denied
 
     const adsCost = await prisma.adsCost.create({
       data: {

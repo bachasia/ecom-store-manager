@@ -11,6 +11,7 @@ interface Store {
   id: string
   name: string
   platform: string
+  myRole: string | null
 }
 
 interface ManualRow {
@@ -49,6 +50,14 @@ export default function AdsPage() {
   const [stores, setStores] = useState<Store[]>([])
   const [selectedStore, setSelectedStore] = useState("")
   const [activeTab, setActiveTab] = useState<"import" | "manual">("import")
+
+  // Derived: can the current user manage ads for the selected store?
+  const canManageAds = (() => {
+    if (!selectedStore) return false
+    const store = stores.find(s => s.id === selectedStore)
+    if (!store) return false
+    return store.myRole !== 'VIEWER'
+  })()
 
   // import tab state
   const [platform, setPlatform] = useState<"facebook" | "google">("facebook")
@@ -263,8 +272,15 @@ export default function AdsPage() {
         </button>
       </div>
 
+      {/* Permission guard for write actions */}
+      {selectedStore && !canManageAds && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-4 text-sm text-amber-800">
+          You do not have permission to add or import ads costs for this store.
+        </div>
+      )}
+
       {/* ── IMPORT TAB ── */}
-      {activeTab === "import" && (
+      {activeTab === "import" && canManageAds && (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
           <h3 className="text-lg font-semibold text-gray-900 mb-6">{t("importTitle")}</h3>
 
@@ -374,7 +390,7 @@ export default function AdsPage() {
       )}
 
       {/* ── MANUAL TAB ── */}
-      {activeTab === "manual" && (
+      {activeTab === "manual" && canManageAds && (
         <div className="space-y-5">
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
             <h3 className="text-lg font-semibold text-gray-900 mb-6">{t("manualTitle")}</h3>

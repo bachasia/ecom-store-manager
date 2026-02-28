@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
+import { requireSuperAdmin } from "@/lib/permissions"
 
 const SETTING_KEY = "allow_registration"
 
@@ -32,6 +33,9 @@ export async function PUT(req: Request) {
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
+
+    const denied = await requireSuperAdmin(session.user.id)
+    if (denied) return denied
 
     const { allowRegistration } = await req.json()
     if (typeof allowRegistration !== "boolean") {

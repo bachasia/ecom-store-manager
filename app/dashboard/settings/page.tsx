@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useTranslations } from "next-intl"
 import CustomSelect from "@/components/ui/custom-select"
 import { useNotifier } from "@/components/ui/feedback-provider"
+import { useIsSuperAdmin } from "@/hooks/usePermissions"
 
 interface PaymentGateway {
   id: string
@@ -22,6 +23,7 @@ interface AlertSettings {
 export default function SettingsPage() {
   const t = useTranslations('settings')
   const { success: notifySuccess, error: notifyError, confirm } = useNotifier()
+  const isSuperAdmin = useIsSuperAdmin()
   const [gateways, setGateways] = useState<PaymentGateway[]>([])
   const [stores, setStores] = useState<Array<{ id: string; name: string }>>([])
   const [selectedStoreByGateway, setSelectedStoreByGateway] = useState<Record<string, string>>( {})
@@ -648,7 +650,8 @@ export default function SettingsPage() {
         </div>
       </div>
 
-      {/* Admin Settings */}
+      {/* Admin Settings — SUPER_ADMIN only */}
+      {isSuperAdmin && (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
         <div className="px-6 py-5 border-b border-gray-100">
           <h3 className="text-lg font-semibold text-gray-900">{t('admin')}</h3>
@@ -685,6 +688,7 @@ export default function SettingsPage() {
           )}
         </div>
       </div>
+      )}
 
       <div className="bg-gradient-to-br from-indigo-50 to-indigo-50/50 rounded-2xl border border-indigo-100 p-6">
         <div className="flex items-start space-x-3">

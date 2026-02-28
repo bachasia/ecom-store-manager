@@ -3,8 +3,9 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
-import { encrypt, decrypt } from "@/lib/encryption"
+import { encrypt } from "@/lib/encryption"
 import { z } from "zod"
+import { getStoreIdsWithPermission, requireStorePermission, isSuperAdmin } from "@/lib/permissions"
 
 const storeSchema = z.object({
   name: z.string().min(1, "Store name is required"),
@@ -32,9 +33,11 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    const accessibleStoreIds = await getStoreIdsWithPermission(session.user.id, 'view_dashboard')
+
     const stores = await prisma.store.findMany({
       where: {
-        userId: session.user.id
+        id: { in: accessibleStoreIds }
       },
       select: {
         id: true,
@@ -50,6 +53,9 @@ export async function GET() {
         createdAt: true,
         updatedAt: true,
         pluginSecret: true,  // used to compute hasPlugin — not returned to client
+        members: {
+          select: { userId: true, role: true },
+        },
         _count: {
           select: {
             products: true,
@@ -61,6 +67,8 @@ export async function GET() {
         createdAt: 'desc'
       }
     })
+
+    const isAdmin = await isSuperAdmin(session.user.id)
 
     const storeIds = stores.map((store) => store.id)
     let parentProductCountByStore = new Map<string, number>()
@@ -109,7 +117,10 @@ export async function GET() {
     }
 
     const storesWithParentProductCount = stores.map((store) => {
-      const { pluginSecret, ...storeWithoutSecret } = store as any
+      const { pluginSecret, members, ...storeWithoutSecret } = store as any
+      const myRole = isAdmin
+        ? 'OWNER'  // SUPER_ADMIN: report as OWNER for UI purposes
+        : (members as Array<{ userId: string; role: string }>).find(m => m.userId === session!.user!.id)?.role ?? null
       return {
         ...storeWithoutSecret,
         lastSyncStatus:
@@ -118,6 +129,7 @@ export async function GET() {
             : store.lastSyncStatus,
         productCount: parentProductCountByStore.get(store.id) ?? 0,
         hasPlugin: !!pluginSecret,
+        myRole,
       }
     })
 
@@ -178,6 +190,15 @@ export async function POST(req: Request) {
         currency: true,
         timezone: true,
         createdAt: true,
+      }
+    })
+
+    // Auto-create StoreUser OWNER record for the creator
+    await prisma.storeUser.create({
+      data: {
+        storeId: store.id,
+        userId: session.user.id,
+        role: 'OWNER',
       }
     })
 

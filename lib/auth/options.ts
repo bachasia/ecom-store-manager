@@ -2,6 +2,7 @@ import { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { compare } from "bcryptjs"
 import { prisma } from "@/lib/prisma"
+import { SystemRole } from "@prisma/client"
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -20,6 +21,13 @@ export const authOptions: NextAuthOptions = {
           where: {
             email: credentials.email,
           },
+          select: {
+            id: true,
+            email: true,
+            name: true,
+            password: true,
+            systemRole: true,
+          },
         })
 
         if (!user || !user.password) {
@@ -36,6 +44,7 @@ export const authOptions: NextAuthOptions = {
           id: user.id,
           email: user.email,
           name: user.name,
+          systemRole: user.systemRole,
         }
       },
     }),
@@ -50,12 +59,14 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id
+        token.systemRole = (user as { systemRole: SystemRole }).systemRole
       }
       return token
     },
     async session({ session, token }) {
       if (session.user) {
         session.user.id = token.id as string
+        session.user.systemRole = token.systemRole as SystemRole
       }
       return session
     },

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { calculateAggregatePL, calculatePLByDate, calculatePLByMonth } from "@/lib/calculations/pnl"
+import { getStoreIdsWithPermission, requireStorePermission } from "@/lib/permissions"
 
 // GET /api/pnl - Get P&L metrics with filters
 export async function GET(req: Request) {
@@ -25,40 +26,26 @@ export async function GET(req: Request) {
     let accessibleStores: Array<{ id: string; name: string; platform: string }> = []
 
     if (storeId) {
-      // Verify store belongs to user
-      const store = await prisma.store.findFirst({
-        where: {
-          id: storeId,
-          userId: session.user.id
-        },
-        select: {
-          id: true,
-          name: true,
-          platform: true,
-        },
-      })
+      // Verify store access
+      const denied = await requireStorePermission(session.user.id, storeId, 'view_dashboard')
+      if (denied) return denied
 
-      if (!store) {
-        return NextResponse.json({ error: "Store not found" }, { status: 404 })
-      }
+      const store = await prisma.store.findUnique({
+        where: { id: storeId },
+        select: { id: true, name: true, platform: true },
+      })
+      if (!store) return NextResponse.json({ error: "Store not found" }, { status: 404 })
 
       where.storeId = storeId
       accessibleStores = [{ id: store.id, name: store.name, platform: store.platform }]
     } else {
-      // Get all user's stores
+      // Get all accessible stores
+      const accessibleStoreIds = await getStoreIdsWithPermission(session.user.id, 'view_dashboard')
       const userStores = await prisma.store.findMany({
-        where: { userId: session.user.id },
-        select: {
-          id: true,
-          name: true,
-          platform: true,
-        },
+        where: { id: { in: accessibleStoreIds } },
+        select: { id: true, name: true, platform: true },
       })
-
-      where.storeId = {
-        in: userStores.map(s => s.id)
-      }
-
+      where.storeId = { in: userStores.map(s => s.id) }
       accessibleStores = userStores
     }
 

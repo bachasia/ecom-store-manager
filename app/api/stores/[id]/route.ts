@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { encrypt, decrypt } from "@/lib/encryption"
 import { z } from "zod"
+import { requireStorePermission } from "@/lib/permissions"
 
 const updateStoreSchema = z.object({
   name: z.string().min(1, "Store name is required").optional(),
@@ -33,7 +34,7 @@ export async function GET(
     const store = await prisma.store.findFirst({
       where: {
         id: id,
-        userId: session.user.id
+        members: { some: { userId: session.user.id } }
       },
       select: {
         id: true,
@@ -81,12 +82,13 @@ export async function PUT(
     const body = await req.json()
     const validatedData = updateStoreSchema.parse(body)
 
-    // Check if store exists and belongs to user
+    // Check manage_store permission
+    const denied = await requireStorePermission(session.user.id, id, 'manage_store')
+    if (denied) return denied
+
+    // Check store exists (accessible via membership)
     const existingStore = await prisma.store.findFirst({
-      where: {
-        id: id,
-        userId: session.user.id
-      }
+      where: { id }
     })
 
     if (!existingStore) {
@@ -162,12 +164,13 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Check if store exists and belongs to user
+    // Check manage_store permission
+    const denied = await requireStorePermission(session.user.id, id, 'manage_store')
+    if (denied) return denied
+
+    // Check store exists
     const existingStore = await prisma.store.findFirst({
-      where: {
-        id: id,
-        userId: session.user.id
-      }
+      where: { id }
     })
 
     if (!existingStore) {

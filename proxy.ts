@@ -1,4 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getToken } from 'next-auth/jwt';
+import { SystemRole } from '@prisma/client';
 
 function withLocaleHeader(request: NextRequest, locale: 'en' | 'vi', pathname: string) {
   const requestHeaders = new Headers(request.headers);
@@ -17,10 +19,42 @@ function withLocaleHeader(request: NextRequest, locale: 'en' | 'vi', pathname: s
   return response;
 }
 
-export default function proxy(request: NextRequest) {
+export default async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const cookieLocale = request.cookies.get('NEXT_LOCALE')?.value;
 
+  // Normalize: strip locale prefix to get the "real" pathname
+  let normalizedPath = pathname;
+  if (pathname === '/vi' || pathname.startsWith('/vi/')) {
+    normalizedPath = pathname.replace(/^\/vi(?=\/|$)/, '') || '/';
+  } else if (pathname === '/en' || pathname.startsWith('/en/')) {
+    normalizedPath = pathname.replace(/^\/en(?=\/|$)/, '') || '/';
+  }
+
+  const isDashboard = normalizedPath.startsWith('/dashboard');
+  const isAdminRoute = normalizedPath.startsWith('/dashboard/admin');
+
+  // --- Auth & RBAC checks for dashboard routes ---
+  if (isDashboard) {
+    const token = await getToken({ req: request });
+
+    if (!token) {
+      // Not logged in → redirect to login
+      const loginPath = pathname.startsWith('/vi') ? '/vi/login' : '/login';
+      const callbackUrl = pathname.startsWith('/vi') ? '/vi/dashboard' : '/dashboard';
+      return NextResponse.redirect(
+        new URL(`${loginPath}?callbackUrl=${encodeURIComponent(callbackUrl)}&reason=auth_required`, request.url)
+      );
+    }
+
+    // Block /dashboard/admin/* for non-SUPER_ADMIN
+    if (isAdminRoute && token.systemRole !== SystemRole.SUPER_ADMIN) {
+      const redirectTo = pathname.startsWith('/vi') ? '/vi/dashboard' : '/dashboard';
+      return NextResponse.redirect(new URL(redirectTo, request.url));
+    }
+  }
+
+  // --- i18n routing ---
   if (pathname === '/vi' || pathname.startsWith('/vi/')) {
     const strippedPath = pathname.replace(/^\/vi(?=\/|$)/, '') || '/';
     return withLocaleHeader(request, 'vi', strippedPath);
@@ -49,5 +83,5 @@ export default function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/((?!api|_next|_vercel|.*\\..*).*)']
+  matcher: ['/((?!api|_next|_vercel|.*\\..*).*)', '/dashboard/:path*', '/vi/dashboard/:path*']
 };

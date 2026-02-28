@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { useTranslations } from "next-intl"
 import PlatformSelect from "@/components/ui/platform-select"
 import AutoSyncSettings from "@/components/stores/AutoSyncSettings"
+import StoreMembersPanel from "@/components/stores/StoreMembersPanel"
 import { useNotifier } from "@/components/ui/feedback-provider"
 
 interface Store {
@@ -13,6 +14,7 @@ interface Store {
   apiUrl: string
   isActive: boolean
   currency: string
+  myRole: string | null
   timezone?: string
   lastSyncAt: string | null
   lastSyncStatus: string | null
@@ -585,6 +587,10 @@ export default function StoresPage() {
             const storeSyncing = store.lastSyncStatus === "in_progress" || store.lastSyncStatus === "cancelling"
             const productSyncing = productJob?.status === "running"
             const orderSyncing = orderJob?.status === "running"
+            // VIEWER cannot manage store; OWNER/MANAGER/DATA_ENTRY/SUPER_ADMIN(alias OWNER) can sync/test
+            // Only OWNER (and SUPER_ADMIN) can edit/delete/manage members
+            const canManageStore = store.myRole !== 'VIEWER' && store.myRole !== null
+            const canOwn = store.myRole === 'OWNER'
 
             return (
               <div key={store.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 hover:shadow-md transition-all duration-200">
@@ -697,14 +703,17 @@ export default function StoresPage() {
 
                 {/* Action buttons */}
                 <div className="flex items-center space-x-2 pt-4 border-t border-gray-100">
+                  {canManageStore && (
                   <button
                     onClick={() => handleTestConnection(store.id)}
                     className="flex-1 px-3 py-2 rounded-lg text-sm font-medium text-indigo-700 bg-indigo-50 hover:bg-indigo-100 border border-indigo-100 transition-colors duration-200"
                   >
                     {t("testConnection")}
                   </button>
+                  )}
 
                   {/* Sync Products */}
+                  {canManageStore && (
                   <button
                     onClick={() => {
                       if (storeSyncing) return
@@ -740,8 +749,10 @@ export default function StoresPage() {
                       </span>
                     )}
                   </button>
+                  )}
 
                   {/* Sync Orders */}
+                  {canManageStore && (
                   <button
                     onClick={() => {
                       if (storeSyncing) return
@@ -777,8 +788,9 @@ export default function StoresPage() {
                       </span>
                     )}
                   </button>
+                  )}
 
-                  {storeSyncing && (
+                  {canManageStore && storeSyncing && (
                     <button
                       onClick={() => cancelStoreSync(store.id)}
                       className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium border text-red-700 bg-red-50 hover:bg-red-100 border-red-100 transition-colors duration-200"
@@ -787,6 +799,7 @@ export default function StoresPage() {
                     </button>
                   )}
 
+                  {canOwn && (
                   <button
                     onClick={() => setEditingStore(store)}
                     title={t("edit")}
@@ -796,6 +809,8 @@ export default function StoresPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                     </svg>
                   </button>
+                  )}
+                  {canOwn && (
                   <button
                     onClick={() => handleClearData(store)}
                     title={t("clearData")}
@@ -807,6 +822,8 @@ export default function StoresPage() {
                       <path d="M6.0 11.0l7 7" />
                     </svg>
                   </button>
+                  )}
+                  {canOwn && (
                   <button
                     onClick={() => handleDelete(store.id)}
                     title={t("deleteStore")}
@@ -816,7 +833,11 @@ export default function StoresPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                     </svg>
                   </button>
+                  )}
                 </div>
+
+                {/* Store Members Panel */}
+                <StoreMembersPanel storeId={store.id} canManage={canOwn} />
               </div>
             )
           })}

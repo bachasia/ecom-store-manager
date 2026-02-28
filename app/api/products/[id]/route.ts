@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
+import { requireStorePermission } from "@/lib/permissions"
 
 // GET /api/products/[id] - Get single product
 export async function GET(
@@ -17,26 +18,17 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const product = await prisma.product.findFirst({
-      where: {
-        id: id,
-        store: {
-          userId: session.user.id
-        }
-      },
-      include: {
-        store: {
-          select: {
-            id: true,
-            name: true,
-          }
-        }
-      }
+    const product = await prisma.product.findUnique({
+      where: { id },
+      include: { store: { select: { id: true, name: true } } }
     })
 
     if (!product) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 })
     }
+
+    const denied = await requireStorePermission(session.user.id, product.storeId, 'view_products')
+    if (denied) return denied
 
     return NextResponse.json({ product })
 
@@ -69,19 +61,18 @@ export async function PUT(
       return NextResponse.json({ error: "Invalid base cost" }, { status: 400 })
     }
 
-    // Verify product belongs to user
-    const product = await prisma.product.findFirst({
-      where: {
-        id: id,
-        store: {
-          userId: session.user.id
-        }
-      }
+    // Verify product exists and check edit permission
+    const product = await prisma.product.findUnique({
+      where: { id },
+      select: { id: true, storeId: true }
     })
 
     if (!product) {
       return NextResponse.json({ error: "Product not found" }, { status: 404 })
     }
+
+    const denied = await requireStorePermission(session.user.id, product.storeId, 'edit_products')
+    if (denied) return denied
 
     // Update product baseCost, then cascade to OrderItem + Order in one transaction
     const [updated] = await prisma.$transaction([

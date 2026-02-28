@@ -8,6 +8,8 @@ import { useTranslations } from 'next-intl'
 import LanguageSwitcher from "@/components/language-switcher"
 import ExchangeRate from "@/components/ui/exchange-rate"
 import { getAlertCount, getCurrentMonthToDateRange } from "@/lib/reports/helpers"
+import { useIsSuperAdmin, useSystemRole } from "@/hooks/usePermissions"
+import { SystemRole } from "@prisma/client"
 import { 
   LayoutDashboard, 
   Store, 
@@ -16,14 +18,22 @@ import {
   TrendingUp, 
   Settings,
   BarChart2,
-  LogOut
+  LogOut,
+  Shield
 } from "lucide-react"
+
+const SYSTEM_ROLE_BADGE: Record<SystemRole, { label: string; className: string }> = {
+  SUPER_ADMIN: { label: "Super Admin", className: "bg-purple-100 text-purple-700" },
+  USER: { label: "User", className: "bg-gray-100 text-gray-600" },
+}
 
 export default function DashboardNav({ userEmail }: { userEmail: string }) {
   const pathname = usePathname()
   const t = useTranslations('nav')
   const isViPath = pathname === "/vi" || pathname.startsWith("/vi/")
   const normalizedPathname = pathname.replace(/^\/vi(?=\/|$)/, "") || "/"
+  const isSuperAdmin = useIsSuperAdmin()
+  const systemRole = useSystemRole()
 
   const [alertCount, setAlertCount] = useState(0)
 
@@ -102,7 +112,20 @@ export default function DashboardNav({ userEmail }: { userEmail: string }) {
           )
         })}
 
-        {/* Language Switcher — ngay dưới Settings */}
+        {/* Admin section — only SUPER_ADMIN */}
+        {isSuperAdmin && (
+          <div className="pt-3">
+            <div className="px-4 py-1.5 text-xs font-semibold text-gray-400 uppercase tracking-wider">
+              Admin
+            </div>
+            <Link href={withLocale("/dashboard/admin/users")} className={linkClass("/dashboard/admin")}>
+              <Shield className="w-5 h-5 mr-3 flex-shrink-0" />
+              <span className="flex-1">User Management</span>
+            </Link>
+          </div>
+        )}
+
+        {/* Language Switcher */}
         <div className="pt-3">
           <LanguageSwitcher />
         </div>
@@ -130,6 +153,11 @@ export default function DashboardNav({ userEmail }: { userEmail: string }) {
             <p className="text-xs text-gray-500 truncate">
               {userEmail}
             </p>
+            {systemRole && (
+              <span className={`inline-block mt-0.5 text-xs px-1.5 py-0.5 rounded-full font-medium ${SYSTEM_ROLE_BADGE[systemRole].className}`}>
+                {SYSTEM_ROLE_BADGE[systemRole].label}
+              </span>
+            )}
           </div>
         </div>
 

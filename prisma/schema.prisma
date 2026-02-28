@@ -10,18 +10,33 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Enums
+enum SystemRole {
+  SUPER_ADMIN
+  USER
+}
+
+enum StoreRole {
+  OWNER
+  MANAGER
+  VIEWER
+  DATA_ENTRY
+}
+
 // User & Authentication
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
+  id            String     @id @default(cuid())
+  email         String     @unique
   name          String?
-  password      String    // hashed
+  password      String     // hashed
   emailVerified DateTime?
   image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  systemRole    SystemRole @default(USER)
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
   
   stores        Store[]
+  storeMembers  StoreUser[]
   accounts      Account[]
   sessions      Session[]
 }
@@ -80,13 +95,31 @@ model Store {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
   
-  user        User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  members     StoreUser[]
   products    Product[]
   orders      Order[]
   adsCosts    AdsCost[]
   syncLogs    SyncLog[]
   
   @@index([userId])
+}
+
+// Store Membership & Role
+model StoreUser {
+  id        String    @id @default(cuid())
+  storeId   String
+  userId    String
+  role      StoreRole @default(VIEWER)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  store     Store     @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([storeId, userId])
+  @@index([userId])
+  @@index([storeId])
 }
 
 // Products & SKUs

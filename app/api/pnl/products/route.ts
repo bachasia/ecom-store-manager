@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { calculatePLByProduct } from "@/lib/calculations/pnl"
+import { getStoreIdsWithPermission, requireStorePermission } from "@/lib/permissions"
 
 // GET /api/pnl/products - Get P&L metrics by product
 export async function GET(req: Request) {
@@ -25,30 +26,15 @@ export async function GET(req: Request) {
     }
 
     if (storeId) {
-      // Verify store belongs to user
-      const store = await prisma.store.findFirst({
-        where: {
-          id: storeId,
-          userId: session.user.id
-        }
-      })
-
-      if (!store) {
-        return NextResponse.json({ error: "Store not found" }, { status: 404 })
-      }
-
+      // Verify store access
+      const denied = await requireStorePermission(session.user.id, storeId, 'view_dashboard')
+      if (denied) return denied
       where.order.storeId = storeId
     } else {
-      // Get all user's stores
-      const userStores = await prisma.store.findMany({
-        where: { userId: session.user.id },
-        select: { id: true }
-      })
-
+      // Get all accessible stores
+      const accessibleStoreIds = await getStoreIdsWithPermission(session.user.id, 'view_dashboard')
       where.order = {
-        storeId: {
-          in: userStores.map(s => s.id)
-        }
+        storeId: { in: accessibleStoreIds }
       }
     }
 

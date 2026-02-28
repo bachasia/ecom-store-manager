@@ -3,6 +3,14 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
+import { getStoreIdsWithPermission, isSuperAdmin } from "@/lib/permissions"
+
+// Helper: user must be SUPER_ADMIN OR have manage_settings on at least one store
+async function canManageSettings(userId: string): Promise<boolean> {
+  if (await isSuperAdmin(userId)) return true
+  const storeIds = await getStoreIdsWithPermission(userId, 'manage_settings')
+  return storeIds.length > 0
+}
 
 const gatewaySchema = z.object({
   name: z.string().min(1, "Gateway name is required"),
@@ -22,6 +30,7 @@ export async function GET() {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
+    // GET is read-only — any authenticated user may list gateways
     const gateways = await prisma.paymentGateway.findMany({
       orderBy: {
         name: 'asc'
@@ -45,6 +54,10 @@ export async function POST(req: Request) {
     
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    if (!(await canManageSettings(session.user.id))) {
+      return NextResponse.json({ error: "Forbidden: insufficient permissions" }, { status: 403 })
     }
 
     const body = await req.json()

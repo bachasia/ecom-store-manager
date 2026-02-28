@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
+import { getStoreIdsWithPermission, requireStorePermission } from "@/lib/permissions"
 
 // GET /api/reports/sku
 // Params: storeId?, startDate, endDate, sortBy=profit|revenue|margin|units, limit=50
@@ -24,18 +25,19 @@ export async function GET(req: Request) {
     const storeMap = new Map<string, { name: string; platform: string }>()
 
     if (storeId) {
-      const store = await prisma.store.findFirst({
-        where: { id: storeId, userId: session.user.id },
+      const denied = await requireStorePermission(session.user.id, storeId, 'view_dashboard')
+      if (denied) return denied
+      const store = await prisma.store.findUnique({
+        where: { id: storeId },
         select: { id: true, name: true, platform: true },
       })
-      if (!store) {
-        return NextResponse.json({ error: "Store not found" }, { status: 404 })
-      }
+      if (!store) return NextResponse.json({ error: "Store not found" }, { status: 404 })
       storeIds = [store.id]
       storeMap.set(store.id, { name: store.name, platform: store.platform })
     } else {
+      const accessibleStoreIds = await getStoreIdsWithPermission(session.user.id, 'view_dashboard')
       const userStores = await prisma.store.findMany({
-        where: { userId: session.user.id },
+        where: { id: { in: accessibleStoreIds } },
         select: { id: true, name: true, platform: true },
       })
       storeIds = userStores.map((s) => s.id)

@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { calculateOrderPL } from "@/lib/calculations/pnl"
 import { allocateAdsCosts } from "@/lib/calculations/ads-allocation"
+import { requireStorePermission } from "@/lib/permissions"
 
 // POST /api/ads/import - Bulk import ads costs
 export async function POST(req: Request) {
@@ -16,12 +17,13 @@ export async function POST(req: Request) {
 
     const { storeId, platform, data } = await req.json()
 
-    // Verify user owns this store
-    const store = await prisma.store.findFirst({
-      where: {
-        id: storeId,
-        userId: session.user.id
-      }
+    // Verify store permission (manage_ads)
+    const denied = await requireStorePermission(session.user.id, storeId, 'manage_ads')
+    if (denied) return denied
+
+    // Verify store exists
+    const store = await prisma.store.findUnique({
+      where: { id: storeId }
     })
 
     if (!store) {

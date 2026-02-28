@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { ShopbaseClient } from "@/lib/integrations/shopbase"
 import { WooCommerceClient } from "@/lib/integrations/woocommerce"
 import { WcPluginClient } from "@/lib/integrations/wc-plugin"
+import { requireStorePermission } from "@/lib/permissions"
 
 // POST /api/stores/[id]/test - Test store connection
 export async function POST(
@@ -21,11 +22,12 @@ export async function POST(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Get store with encrypted credentials (pluginSecret included for plugin test)
-    const store = await prisma.store.findFirst({
-      where: { id: id, userId: session.user.id }
-    }) as any
+    // Check manage_store permission
+    const denied = await requireStorePermission(session.user.id, id, 'manage_store')
+    if (denied) return denied
 
+    // Get store with encrypted credentials
+    const store = await prisma.store.findUnique({ where: { id } }) as any
     if (!store) {
       return NextResponse.json({ error: "Store not found" }, { status: 404 })
     }

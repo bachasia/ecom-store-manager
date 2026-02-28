@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
+import { getStoreIdsWithPermission } from "@/lib/permissions"
 
 // GET /api/reports/store
 // Params: startDate, endDate, groupBy=total|day|month
@@ -20,9 +21,10 @@ export async function GET(req: Request) {
     const endDate = searchParams.get("endDate")
     const groupBy = searchParams.get("groupBy") || "total" // total | day | month
 
-    // --- Fetch all user stores ---
+    // --- Fetch accessible stores ---
+    const accessibleStoreIds = await getStoreIdsWithPermission(session.user.id, 'view_dashboard')
     const userStores = await prisma.store.findMany({
-      where: { userId: session.user.id },
+      where: { id: { in: accessibleStoreIds } },
       select: { id: true, name: true, platform: true },
     })
 

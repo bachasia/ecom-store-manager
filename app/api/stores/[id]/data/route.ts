@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
+import { requireStorePermission } from "@/lib/permissions"
 
 // DELETE /api/stores/[id]/data - Xóa toàn bộ dữ liệu của store (giữ lại store)
 export async function DELETE(
@@ -16,10 +17,10 @@ export async function DELETE(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const store = await prisma.store.findFirst({
-      where: { id, userId: session.user.id }
-    })
+    const denied = await requireStorePermission(session.user.id, id, 'manage_store')
+    if (denied) return denied
 
+    const store = await prisma.store.findUnique({ where: { id }, select: { id: true } })
     if (!store) {
       return NextResponse.json({ error: "Store not found" }, { status: 404 })
     }

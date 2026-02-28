@@ -46,6 +46,7 @@ interface Store {
   id: string
   name: string
   platform: string
+  myRole: string | null
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -143,6 +144,15 @@ export default function ProductsPage() {
   const [exporting, setExporting] = useState(false)
   const [productFilter, setProductFilter] = useState<"" | "no_cogs" | "has_sold" | "no_sold">("")
   const fetchAbortRef = useRef<AbortController | null>(null)
+
+  // Derived: can the current user edit products in the selected store?
+  const canEdit = (() => {
+    if (!selectedStore) return false
+    const store = stores.find(s => s.id === selectedStore)
+    if (!store) return false
+    // VIEWER cannot edit; OWNER/MANAGER/DATA_ENTRY/null(SUPER_ADMIN via OWNER alias) can
+    return store.myRole !== 'VIEWER'
+  })()
 
   useEffect(() => { fetchStores() }, [])
   useEffect(() => {
@@ -290,6 +300,7 @@ export default function ProductsPage() {
               : <><Download className="w-4 h-4 mr-2" />Export CSV</>
             }
           </button>
+          {canEdit && (
           <button
             onClick={() => setShowBulkUpload(true)}
             className="inline-flex items-center px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all duration-200"
@@ -297,6 +308,7 @@ export default function ProductsPage() {
             <Upload className="w-5 h-5 mr-2" />
             Bulk Update COGS
           </button>
+          )}
         </div>
       </div>
 
@@ -486,7 +498,7 @@ export default function ProductsPage() {
 
                           {/* Actions */}
                           <td className="px-4 py-3 text-right" onClick={(e) => e.stopPropagation()}>
-                            {!hasVariants && (
+                            {!hasVariants && canEdit && (
                               <button
                                 onClick={() => setEditingVariant({
                                   id: group.variants[0]?.id ?? group.id,
@@ -556,6 +568,7 @@ export default function ProductsPage() {
                               </td>
                               {/* Edit COGS */}
                               <td className="px-4 py-2.5 text-right">
+                                {canEdit && (
                                 <button
                                   onClick={() => setEditingVariant({
                                     id: v.id,
@@ -568,6 +581,7 @@ export default function ProductsPage() {
                                   <Edit2 className="w-3.5 h-3.5 mr-1" />
                                   {t("edit")}
                                 </button>
+                                )}
                               </td>
                             </tr>
                           )

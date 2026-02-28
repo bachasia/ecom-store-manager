@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
+import { requireStorePermission } from "@/lib/permissions"
 
 // POST /api/products/bulk-update - Bulk update COGS from CSV
 export async function POST(req: Request) {
@@ -21,9 +22,13 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid data" }, { status: 400 })
     }
 
-    // Verify store belongs to user
-    const store = await prisma.store.findFirst({
-      where: { id: storeId, userId: session.user.id },
+    // Verify store permission (edit_products)
+    const denied = await requireStorePermission(session.user.id, storeId, 'edit_products')
+    if (denied) return denied
+
+    // Verify store exists and is accessible
+    const store = await prisma.store.findUnique({
+      where: { id: storeId },
     })
 
     if (!store) {

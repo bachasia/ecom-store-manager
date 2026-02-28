@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
+import { requireStorePermission } from "@/lib/permissions"
 
 const MIN_INTERVAL = 5    // phút
 const MAX_INTERVAL = 1440 // 24h
@@ -19,11 +20,11 @@ export async function PATCH(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Verify store belongs to user
-    const store = await prisma.store.findFirst({
-      where: { id, userId: session.user.id },
-      select: { id: true },
-    })
+    // Verify manage_store permission
+    const denied = await requireStorePermission(session.user.id, id, 'manage_store')
+    if (denied) return denied
+
+    const store = await prisma.store.findUnique({ where: { id }, select: { id: true } })
     if (!store) {
       return NextResponse.json({ error: "Store not found" }, { status: 404 })
     }
@@ -81,8 +82,12 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const store = await prisma.store.findFirst({
-      where: { id, userId: session.user.id },
+    // Verify view_dashboard permission (GET is read-only)
+    const denied = await requireStorePermission(session.user.id, id, 'view_dashboard')
+    if (denied) return denied
+
+    const store = await prisma.store.findUnique({
+      where: { id },
       select: {
         id: true,
         autoSyncEnabled: true,

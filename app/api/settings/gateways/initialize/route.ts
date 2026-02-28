@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
+import { getStoreIdsWithPermission, isSuperAdmin } from "@/lib/permissions"
 
 const DEFAULT_GATEWAYS = [
   { name: "stripe", displayName: "Stripe", feePercentage: 2.9, feeFixed: 0.3, isActive: true },
@@ -19,6 +20,12 @@ export async function POST() {
 
     if (!session?.user?.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const canManage = (await isSuperAdmin(session.user.id)) ||
+      (await getStoreIdsWithPermission(session.user.id, 'manage_settings')).length > 0
+    if (!canManage) {
+      return NextResponse.json({ error: "Forbidden: insufficient permissions" }, { status: 403 })
     }
 
     await prisma.$transaction(

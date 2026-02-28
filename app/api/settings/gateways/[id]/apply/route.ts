@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { calculateTransactionFee } from "@/lib/calculations/transaction-fee"
 import { calculateOrderPL } from "@/lib/calculations/pnl"
 import { z } from "zod"
+import { getStoreIdsWithPermission, isSuperAdmin, requireStorePermission } from "@/lib/permissions"
 
 const applySchema = z.object({
   storeId: z.string().optional(),
@@ -35,12 +36,26 @@ export async function POST(
       return NextResponse.json({ error: "Gateway not found" }, { status: 404 })
     }
 
-    // Target stores: one store or all user stores
+    // If a specific storeId is requested, check manage_settings on that store
+    if (storeId) {
+      const denied = await requireStorePermission(session.user.id, storeId, 'manage_settings')
+      if (denied) return denied
+    } else {
+      // Operating across all stores — user must have manage_settings on at least one
+      const ok = (await isSuperAdmin(session.user.id)) ||
+        (await getStoreIdsWithPermission(session.user.id, 'manage_settings')).length > 0
+      if (!ok) {
+        return NextResponse.json({ error: "Forbidden: insufficient permissions" }, { status: 403 })
+      }
+    }
+
+    // Target stores: one store or all stores accessible with manage_settings
+    const accessibleIds = storeId
+      ? [storeId]
+      : await getStoreIdsWithPermission(session.user.id, 'manage_settings')
+
     const userStores = await prisma.store.findMany({
-      where: {
-        userId: session.user.id,
-        ...(storeId ? { id: storeId } : {}),
-      },
+      where: { id: { in: accessibleIds } },
       select: { id: true, name: true },
     })
 

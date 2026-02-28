@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
+import { requireStorePermission } from "@/lib/permissions"
 
 // GET /api/orders/[id] - Get order detail with P&L breakdown
 export async function GET(
@@ -17,13 +18,19 @@ export async function GET(
 
     const { id } = await params
 
-    const order = await prisma.order.findFirst({
-      where: {
-        id: id,
-        store: {
-          userId: session.user.id
-        }
-      },
+    const order = await prisma.order.findUnique({
+      where: { id },
+      select: { storeId: true }
+    })
+    if (!order) {
+      return NextResponse.json({ error: "Order not found" }, { status: 404 })
+    }
+
+    const denied = await requireStorePermission(session.user.id, order.storeId, 'view_orders')
+    if (denied) return denied
+
+    const fullOrder = await prisma.order.findUnique({
+      where: { id },
       include: {
         store: {
           select: {
@@ -56,17 +63,17 @@ export async function GET(
       }
     })
 
-    if (!order) {
+    if (!fullOrder) {
       return NextResponse.json({ error: "Order not found" }, { status: 404 })
     }
 
     // Calculate P&L breakdown
-    const revenue = Number(order.total) - Number(order.refundAmount)
-    const cogs = Number(order.totalCOGS)
+    const revenue = Number(fullOrder.total) - Number(fullOrder.refundAmount)
+    const cogs = Number(fullOrder.totalCOGS)
     const grossProfit = revenue - cogs
     const grossMargin = revenue > 0 ? (grossProfit / revenue) * 100 : 0
-    const transactionFee = Number(order.transactionFee)
-    const adsCost = Number(order.allocatedAdsCost)
+    const transactionFee = Number(fullOrder.transactionFee)
+    const adsCost = Number(fullOrder.allocatedAdsCost)
     const netProfit = grossProfit - transactionFee - adsCost
     const profitMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0
 
@@ -82,7 +89,7 @@ export async function GET(
     }
 
     return NextResponse.json({
-      order,
+      order: fullOrder,
       plBreakdown
     })
 

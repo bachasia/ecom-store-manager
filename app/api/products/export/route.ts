@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
+import { requireStorePermission } from "@/lib/permissions"
 
 const EXPORT_LIMIT = 50_000
 
@@ -22,9 +23,13 @@ export async function GET(req: Request) {
     return new Response(JSON.stringify({ error: "storeId is required" }), { status: 400 })
   }
 
-  // Verify store belongs to user
-  const store = await prisma.store.findFirst({
-    where: { id: storeId, userId: session.user.id },
+  // Verify store permission (view_products)
+  const denied = await requireStorePermission(session.user.id, storeId, 'view_products')
+  if (denied) return denied
+
+  // Verify store exists
+  const store = await prisma.store.findUnique({
+    where: { id: storeId },
     select: { id: true, name: true },
   })
   if (!store) {

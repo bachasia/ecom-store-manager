@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
+import { getStoreIdsWithPermission, requireStorePermission } from "@/lib/permissions"
 
 // GET /api/products - List products grouped by parent
 export async function GET(req: Request) {
@@ -22,21 +23,24 @@ export async function GET(req: Request) {
     const limit = parseInt(searchParams.get("limit") || "50")
     const skip = (page - 1) * limit
 
-    // Build store filter
-    const storeWhere: any = { userId: session.user.id }
+    // Build store filter using permission-based access
+    let storeIds: string[]
     if (storeId) {
-      const store = await prisma.store.findFirst({ where: { id: storeId, userId: session.user.id } })
-      if (!store) return NextResponse.json({ error: "Store not found" }, { status: 404 })
-      storeWhere.id = storeId
-    } else if (platform) {
-      storeWhere.platform = platform
+      const denied = await requireStorePermission(session.user.id, storeId, 'view_products')
+      if (denied) return denied
+      storeIds = [storeId]
+    } else {
+      const accessibleIds = await getStoreIdsWithPermission(session.user.id, 'view_products')
+      if (platform) {
+        const filteredStores = await prisma.store.findMany({
+          where: { id: { in: accessibleIds }, platform },
+          select: { id: true }
+        })
+        storeIds = filteredStores.map(s => s.id)
+      } else {
+        storeIds = accessibleIds
+      }
     }
-
-    const userStores = await prisma.store.findMany({
-      where: storeWhere,
-      select: { id: true }
-    })
-    const storeIds = userStores.map((s) => s.id)
 
     if (storeIds.length === 0) {
       return NextResponse.json({
@@ -268,12 +272,19 @@ export async function PUT(req: Request) {
 
     const productIds = updates.map((u: any) => u.id)
     const products = await prisma.product.findMany({
-      where: { id: { in: productIds }, store: { userId: session.user.id } },
-      select: { id: true }
+      where: { id: { in: productIds } },
+      select: { id: true, storeId: true }
     })
 
     if (products.length !== productIds.length) {
-      return NextResponse.json({ error: "Some products not found or unauthorized" }, { status: 403 })
+      return NextResponse.json({ error: "Some products not found" }, { status: 404 })
+    }
+
+    // Check edit_products permission on each store involved
+    const storeIds = [...new Set(products.map(p => p.storeId))]
+    for (const sid of storeIds) {
+      const denied = await requireStorePermission(session.user.id, sid, 'edit_products')
+      if (denied) return denied
     }
 
     let updated = 0

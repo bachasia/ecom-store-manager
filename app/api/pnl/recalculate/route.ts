@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { calculateOrderPL } from "@/lib/calculations/pnl"
 import { allocateAdsCosts } from "@/lib/calculations/ads-allocation"
+import { requireStorePermission, getStoreIdsWithPermission } from "@/lib/permissions"
 
 // POST /api/pnl/recalculate - Recalculate P&L for all orders
 export async function POST(req: Request) {
@@ -21,28 +22,17 @@ export async function POST(req: Request) {
     const where: any = {}
 
     if (storeId) {
-      // Verify store belongs to user
-      const store = await prisma.store.findFirst({
-        where: {
-          id: storeId,
-          userId: session.user.id
-        }
-      })
-
-      if (!store) {
-        return NextResponse.json({ error: "Store not found" }, { status: 404 })
-      }
+      // Verify manage_store permission on the specified store
+      const denied = await requireStorePermission(session.user.id, storeId, 'manage_store')
+      if (denied) return denied
 
       where.storeId = storeId
     } else {
-      // Get all user's stores
-      const userStores = await prisma.store.findMany({
-        where: { userId: session.user.id },
-        select: { id: true }
-      })
+      // Get all stores where user has manage_store permission
+      const accessibleIds = await getStoreIdsWithPermission(session.user.id, 'manage_store')
 
       where.storeId = {
-        in: userStores.map(s => s.id)
+        in: accessibleIds
       }
     }
 
