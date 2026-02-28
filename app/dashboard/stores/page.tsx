@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl"
 import PlatformSelect from "@/components/ui/platform-select"
 import AutoSyncSettings from "@/components/stores/AutoSyncSettings"
 import StoreMembersPanel from "@/components/stores/StoreMembersPanel"
+import AdsAccountMappingPanel from "@/components/ads/AdsAccountMappingPanel"
 import { useNotifier } from "@/components/ui/feedback-provider"
 
 interface Store {
@@ -838,6 +839,15 @@ export default function StoresPage() {
 
                 {/* Store Members Panel */}
                 <StoreMembersPanel storeId={store.id} canManage={canOwn} />
+
+                {/* Ads Account Mapping Panel */}
+                <div className="border-t border-gray-100 pt-4 mt-2">
+                  <AdsAccountMappingPanel
+                    storeId={store.id}
+                    storeName={store.name}
+                    canManage={store.myRole !== 'VIEWER' && store.myRole !== null}
+                  />
+                </div>
               </div>
             )
           })}

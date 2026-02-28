@@ -226,13 +226,41 @@ export async function GET(req: Request) {
     } else {
       // Total aggregate
       const metrics = calculateAggregatePL(ordersForCalc)
+
+      // Query AdsCost trực tiếp để hiện số spend thực tế (không phải allocatedAdsCost)
+      const adsWhere: any = {
+        storeId: where.storeId,
+      }
+      if (startDate) adsWhere.date = { gte: new Date(`${startDate}T00:00:00.000Z`) }
+      if (endDate) {
+        const endExclusive = new Date(`${endDate}T00:00:00.000Z`)
+        endExclusive.setUTCDate(endExclusive.getUTCDate() + 1)
+        adsWhere.date = { ...adsWhere.date, lt: endExclusive }
+      }
+      const adsCostRows = await prisma.adsCost.findMany({
+        where: adsWhere,
+        select: { spend: true },
+      })
+      const actualAdsCosts = adsCostRows.reduce((sum, r) => sum + Number(r.spend), 0)
+      const roundedActualAdsCosts = Math.round(actualAdsCosts * 100) / 100
+
+      // Recalc netProfit / profitMargin / roas dùng actualAdsCosts
+      const actualNetProfit = metrics.grossProfit - metrics.transactionFees - roundedActualAdsCosts
+      const actualProfitMargin = metrics.revenue > 0 ? (actualNetProfit / metrics.revenue) * 100 : 0
+      const actualRoas = roundedActualAdsCosts > 0 ? metrics.revenue / roundedActualAdsCosts : null
+
       result = {
         groupBy: "total",
         orderCount: orders.length,
         totalItemsSold,
         itemsPerOrder: orders.length > 0 ? totalItemsSold / orders.length : 0,
         aov: orders.length > 0 ? metrics.revenue / orders.length : 0,
-        ...metrics
+        ...metrics,
+        // Override với số thực từ AdsCost table
+        adsCosts: roundedActualAdsCosts,
+        netProfit: Math.round(actualNetProfit * 100) / 100,
+        profitMargin: Math.round(actualProfitMargin * 100) / 100,
+        roas: actualRoas ? Math.round(actualRoas * 100) / 100 : null,
       }
     }
 

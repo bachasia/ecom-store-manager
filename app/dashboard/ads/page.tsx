@@ -6,6 +6,8 @@ import { parseFacebookAdsCSV } from "@/lib/parsers/facebook-ads"
 import { parseGoogleAdsCSV } from "@/lib/parsers/google-ads"
 import StoreSelect from "@/components/ui/store-select"
 import { useNotifier } from "@/components/ui/feedback-provider"
+import MultiAccountImport from "@/components/ads/MultiAccountImport"
+import AdsReport from "@/components/ads/AdsReport"
 
 interface Store {
   id: string
@@ -49,7 +51,7 @@ export default function AdsPage() {
   // shared
   const [stores, setStores] = useState<Store[]>([])
   const [selectedStore, setSelectedStore] = useState("")
-  const [activeTab, setActiveTab] = useState<"import" | "manual">("import")
+  const [activeTab, setActiveTab] = useState<"import" | "multi" | "manual" | "report">("import")
 
   // Derived: can the current user manage ads for the selected store?
   const canManageAds = (() => {
@@ -59,8 +61,8 @@ export default function AdsPage() {
     return store.myRole !== 'VIEWER'
   })()
 
-  // import tab state
-  const [platform, setPlatform] = useState<"facebook" | "google">("facebook")
+  // import tab state — Google Ads only
+  const [platform] = useState<"facebook" | "google">("google")
   const [file, setFile] = useState<File | null>(null)
   const [parsedData, setParsedData] = useState<any[]>([])
   const [loading, setLoading] = useState(false)
@@ -261,6 +263,17 @@ export default function AdsPage() {
         </button>
         <button
           type="button"
+          onClick={() => setActiveTab("multi")}
+          className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
+            activeTab === "multi"
+              ? "bg-white text-gray-900 shadow-sm"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          {t("tabMulti")}
+        </button>
+        <button
+          type="button"
           onClick={() => setActiveTab("manual")}
           className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
             activeTab === "manual"
@@ -269,6 +282,17 @@ export default function AdsPage() {
           }`}
         >
           {t("tabManual")}
+        </button>
+        <button
+          type="button"
+          onClick={() => setActiveTab("report")}
+          className={`px-5 py-2 rounded-lg text-sm font-semibold transition-all ${
+            activeTab === "report"
+              ? "bg-white text-gray-900 shadow-sm"
+              : "text-gray-500 hover:text-gray-700"
+          }`}
+        >
+          {t("tabReport")}
         </button>
       </div>
 
@@ -299,35 +323,6 @@ export default function AdsPage() {
                 }))}
                 className="w-full"
               />
-            </div>
-
-            {/* Platform */}
-            <div>
-              <label className="block text-sm font-semibold text-gray-900 mb-2">{t("platform")}</label>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  onClick={() => setPlatform("facebook")}
-                  className={`px-4 py-3 rounded-xl border-2 font-medium transition-all ${
-                    platform === "facebook"
-                      ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                      : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
-                  }`}
-                >
-                  Facebook Ads
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setPlatform("google")}
-                  className={`px-4 py-3 rounded-xl border-2 font-medium transition-all ${
-                    platform === "google"
-                      ? "border-indigo-500 bg-indigo-50 text-indigo-700"
-                      : "border-gray-200 bg-white text-gray-700 hover:border-gray-300"
-                  }`}
-                >
-                  Google Ads
-                </button>
-              </div>
             </div>
 
             {/* File upload */}
@@ -654,6 +649,20 @@ export default function AdsPage() {
         </div>
       )}
 
+      {/* ── MULTI-ACCOUNT IMPORT TAB ── */}
+      {activeTab === "multi" && (
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-1">{t("multiTitle")}</h3>
+          <p className="text-sm text-gray-500 mb-6">{t("multiSubtitle")}</p>
+          <MultiAccountImport stores={stores} />
+        </div>
+      )}
+
+      {/* ── ADS REPORT TAB ── */}
+      {activeTab === "report" && (
+        <AdsReport stores={stores} />
+      )}
+
       {/* Instructions (only shown on import tab) */}
       {activeTab === "import" && (
         <div className="bg-gradient-to-br from-indigo-50 to-indigo-50/50 rounded-2xl border border-indigo-100 p-6">
@@ -666,7 +675,6 @@ export default function AdsPage() {
             <div>
               <h4 className="text-sm font-semibold text-gray-900">{t("instructions")}</h4>
               <div className="mt-2 space-y-2 text-sm text-gray-600">
-                <p>{t("facebookAds")}</p>
                 <p>{t("googleAds")}</p>
                 <p>{t("requiredColumns")}</p>
                 <p>{t("dateFormat")}</p>

@@ -99,8 +99,9 @@ model Store {
   members     StoreUser[]
   products    Product[]
   orders      Order[]
-  adsCosts    AdsCost[]
-  syncLogs    SyncLog[]
+  adsCosts           AdsCost[]
+  syncLogs           SyncLog[]
+  adsAccountMappings AdsAccountMapping[]
   
   @@index([userId])
 }
@@ -240,22 +241,56 @@ model AdsCost {
   storeId       String
   date          DateTime @db.Date
   platform      String   // 'facebook' | 'google' | 'manual'
-  
+
+  accountName   String   @default("")  // Tên tài khoản ads (từ "Account name" trong CSV)
   campaignName  String   @default("")
   adsetName     String   @default("")
-  
-  spend         Decimal  @db.Decimal(10, 2)
+
+  // Currency
+  currency        String   @default("USD")   // Currency gốc từ file CSV
+  originalSpend   Decimal? @db.Decimal(10, 2) // Chi phí theo currency gốc (nếu khác USD)
+  exchangeRate    Decimal? @db.Decimal(12, 6) // Tỷ giá đã dùng để convert sang USD
+  spend           Decimal  @db.Decimal(10, 2) // Luôn là USD — dùng cho P&L
+
+  // Standard metrics
   impressions   Int?
   clicks        Int?
-  
+
+  // Facebook Ads extended metrics
+  ctr             Decimal? @db.Decimal(12, 8) // CTR (all) — %
+  cpm             Decimal? @db.Decimal(10, 6) // Cost per 1,000 impressions
+  purchases       Int?                         // Số lượt mua hàng
+  costPerPurchase Decimal? @db.Decimal(10, 6) // Cost per purchase
+  purchaseValue   Decimal? @db.Decimal(10, 2) // Purchases conversion value (revenue)
+  cpc             Decimal? @db.Decimal(10, 8) // CPC (cost per link click)
+
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
-  
+
   store         Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  
-  @@unique([storeId, date, platform, campaignName, adsetName])
+
+  @@unique([storeId, date, platform, accountName, campaignName, adsetName])
   @@index([storeId])
   @@index([date])
+  @@index([storeId, date])
+  @@index([accountName])
+}
+
+// Ads Account Mapping — map nhiều Ads Account vào 1 Store
+model AdsAccountMapping {
+  id          String   @id @default(cuid())
+  storeId     String
+  accountName String   // Tên account trong file CSV, VD: "VNEC 10", "HT 332702"
+  platform    String   @default("facebook") // 'facebook' | 'google' | 'manual'
+  description String?  // Ghi chú tùy chọn
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  store       Store    @relation(fields: [storeId], references: [id], onDelete: Cascade)
+
+  @@unique([platform, accountName])
+  @@index([storeId])
 }
 
 // Payment Gateway Settings

@@ -37,10 +37,11 @@ export async function POST(req: Request) {
       try {
         await prisma.adsCost.upsert({
           where: {
-            storeId_date_platform_campaignName_adsetName: {
+            storeId_date_platform_accountName_campaignName_adsetName: {
               storeId,
               date: new Date(row.date),
               platform,
+              accountName: "",
               campaignName: row.campaignName || "",
               adsetName: row.adsetName || "",
             }
