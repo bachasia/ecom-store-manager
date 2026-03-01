@@ -9,7 +9,7 @@ import LanguageSwitcher from "@/components/language-switcher"
 import ExchangeRate from "@/components/ui/exchange-rate"
 import { getAlertCount, getCurrentMonthToDateRange } from "@/lib/reports/helpers"
 import { useIsSuperAdmin, useSystemRole } from "@/hooks/usePermissions"
-import { SystemRole } from "@prisma/client"
+import { type SystemRole } from "@/lib/roles"
 import { 
   LayoutDashboard, 
   Store, 

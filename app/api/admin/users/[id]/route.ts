@@ -3,12 +3,12 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { requireSuperAdmin } from "@/lib/permissions"
-import { SystemRole } from "@prisma/client"
+import { SYSTEM_ROLE } from "@/lib/roles"
 import { z } from "zod"
 
 const updateUserSchema = z.object({
   name: z.string().min(2).optional(),
-  systemRole: z.nativeEnum(SystemRole).optional(),
+  systemRole: z.nativeEnum(SYSTEM_ROLE).optional(),
 })
 
 // GET /api/admin/users/[id] — get single user detail (SUPER_ADMIN only)
@@ -72,7 +72,7 @@ export async function PUT(
     const data = updateUserSchema.parse(body)
 
     // Cannot demote yourself
-    if (id === session.user.id && data.systemRole === SystemRole.USER) {
+    if (id === session.user.id && data.systemRole === SYSTEM_ROLE.USER) {
       return NextResponse.json(
         { error: "Cannot demote yourself from SUPER_ADMIN" },
         { status: 400 }

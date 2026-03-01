@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { StoreRole, SystemRole } from "@prisma/client"
+import { type StoreRole, type SystemRole } from "@/lib/roles"
 import { UserPlus, Trash2, ChevronDown } from "lucide-react"
 
 interface Member {

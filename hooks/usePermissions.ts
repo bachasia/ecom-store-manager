@@ -1,7 +1,7 @@
 "use client"
 
 import { useSession } from "next-auth/react"
-import { SystemRole } from "@prisma/client"
+import { SYSTEM_ROLE, type SystemRole } from "@/lib/roles"
 
 /**
  * Returns true if the current session user is a SUPER_ADMIN.
@@ -9,7 +9,7 @@ import { SystemRole } from "@prisma/client"
  */
 export function useIsSuperAdmin(): boolean {
   const { data: session } = useSession()
-  return session?.user?.systemRole === SystemRole.SUPER_ADMIN
+  return session?.user?.systemRole === SYSTEM_ROLE.SUPER_ADMIN
 }
 
 /**

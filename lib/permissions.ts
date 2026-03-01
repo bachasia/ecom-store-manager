@@ -1,8 +1,8 @@
-import { SystemRole, StoreRole } from '@prisma/client'
+import { SYSTEM_ROLE, STORE_ROLE, type SystemRole, type StoreRole } from '@/lib/roles'
 import { NextResponse } from 'next/server'
 import { prisma } from '@/lib/prisma'
 
-export { SystemRole, StoreRole }
+export { SYSTEM_ROLE, STORE_ROLE }
 
 // ---------------------------------------------------------------------------
 // Action definitions
@@ -92,7 +92,7 @@ export async function hasStorePermission(
     select: { systemRole: true },
   })
   if (!user) return false
-  if (user.systemRole === SystemRole.SUPER_ADMIN) return true
+  if (user.systemRole === SYSTEM_ROLE.SUPER_ADMIN) return true
 
   const role = await getUserStoreRole(userId, storeId)
   if (!role) return false
@@ -127,7 +127,7 @@ export async function isSuperAdmin(userId: string): Promise<boolean> {
     where: { id: userId },
     select: { systemRole: true },
   })
-  return user?.systemRole === SystemRole.SUPER_ADMIN
+  return user?.systemRole === SYSTEM_ROLE.SUPER_ADMIN
 }
 
 /**
@@ -156,7 +156,7 @@ export async function getAccessibleStoreIds(userId: string): Promise<string[]> {
   })
   if (!user) return []
 
-  if (user.systemRole === SystemRole.SUPER_ADMIN) {
+  if (user.systemRole === SYSTEM_ROLE.SUPER_ADMIN) {
     const allStores = await prisma.store.findMany({ select: { id: true } })
     return allStores.map((s: { id: string }) => s.id)
   }
@@ -183,7 +183,7 @@ export async function getStoreIdsWithPermission(
   })
   if (!user) return []
 
-  if (user.systemRole === SystemRole.SUPER_ADMIN) {
+  if (user.systemRole === SYSTEM_ROLE.SUPER_ADMIN) {
     const allStores = await prisma.store.findMany({ select: { id: true } })
     return allStores.map((s: { id: string }) => s.id)
   }

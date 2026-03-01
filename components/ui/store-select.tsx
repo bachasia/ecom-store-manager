@@ -33,7 +33,7 @@ export default function StoreSelect({
 }: StoreSelectProps) {
   const [open, setOpen] = useState(false)
   const [mounted, setMounted] = useState(false)
-  const [dropdownStyle, setDropdownStyle] = useState<{ top: number; left: number; width: number } | null>(null)
+  const [dropdownStyle, setDropdownStyle] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -48,11 +48,24 @@ export default function StoreSelect({
       const rect = wrapperRef.current?.getBoundingClientRect()
       if (!rect) return
 
+      const viewportHeight = window.innerHeight
+      const gap = 8
+      const spaceBelow = viewportHeight - rect.bottom - gap
+      const maxHeight = Math.max(120, Math.min(256, spaceBelow))
+
       setDropdownStyle({
-        top: rect.bottom + 8,
+        top: rect.bottom + gap,
         left: rect.left,
         width: rect.width,
+        maxHeight,
       })
+
+      if (spaceBelow < 220) {
+        const missingSpace = 220 - spaceBelow
+        window.requestAnimationFrame(() => {
+          window.scrollBy({ top: missingSpace, behavior: "smooth" })
+        })
+      }
     }
 
     updatePosition()
@@ -122,6 +135,7 @@ export default function StoreSelect({
             top: dropdownStyle.top,
             left: dropdownStyle.left,
             width: dropdownStyle.width,
+            maxHeight: dropdownStyle.maxHeight,
           }}
         >
           <button

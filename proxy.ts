@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getToken } from 'next-auth/jwt';
-import { SystemRole } from '@prisma/client';
+import { SYSTEM_ROLE } from '@/lib/roles';
 
 function withLocaleHeader(request: NextRequest, locale: 'en' | 'vi', pathname: string) {
   const requestHeaders = new Headers(request.headers);
@@ -48,7 +48,7 @@ export default async function proxy(request: NextRequest) {
     }
 
     // Block /dashboard/admin/* for non-SUPER_ADMIN
-    if (isAdminRoute && token.systemRole !== SystemRole.SUPER_ADMIN) {
+    if (isAdminRoute && token.systemRole !== SYSTEM_ROLE.SUPER_ADMIN) {
       const redirectTo = pathname.startsWith('/vi') ? '/vi/dashboard' : '/dashboard';
       return NextResponse.redirect(new URL(redirectTo, request.url));
     }

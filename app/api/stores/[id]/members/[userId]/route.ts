@@ -3,11 +3,11 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { requireStorePermission } from "@/lib/permissions"
-import { StoreRole } from "@prisma/client"
+import { STORE_ROLE } from "@/lib/roles"
 import { z } from "zod"
 
 const updateRoleSchema = z.object({
-  role: z.nativeEnum(StoreRole),
+  role: z.nativeEnum(STORE_ROLE),
 })
 
 // PUT /api/stores/[id]/members/[userId] — change role of a store member
@@ -45,7 +45,7 @@ export async function PUT(
       return NextResponse.json({ error: "Member not found" }, { status: 404 })
     }
 
-    if (existing.role === StoreRole.OWNER) {
+    if (existing.role === STORE_ROLE.OWNER) {
       return NextResponse.json(
         { error: "Cannot change role of store owner" },
         { status: 400 }
@@ -101,7 +101,7 @@ export async function DELETE(
       return NextResponse.json({ error: "Member not found" }, { status: 404 })
     }
 
-    if (existing.role === StoreRole.OWNER) {
+    if (existing.role === STORE_ROLE.OWNER) {
       return NextResponse.json(
         { error: "Cannot remove the store owner" },
         { status: 400 }

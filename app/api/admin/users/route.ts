@@ -5,13 +5,13 @@ import { prisma } from "@/lib/prisma"
 import { requireSuperAdmin } from "@/lib/permissions"
 import { hash } from "bcryptjs"
 import { z } from "zod"
-import { SystemRole } from "@prisma/client"
+import { SYSTEM_ROLE } from "@/lib/roles"
 
 const createUserSchema = z.object({
   email: z.string().email("Invalid email"),
   password: z.string().min(6, "Password must be at least 6 characters"),
   name: z.string().min(1).optional(),
-  systemRole: z.nativeEnum(SystemRole).default(SystemRole.USER),
+  systemRole: z.nativeEnum(SYSTEM_ROLE).default(SYSTEM_ROLE.USER),
 })
 
 // GET /api/admin/users — list all users (SUPER_ADMIN only)

@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { SystemRole } from "@prisma/client"
+import { SYSTEM_ROLE, type SystemRole } from "@/lib/roles"
 import { Shield, Trash2, ChevronDown, UserPlus, X } from "lucide-react"
 
 interface User {
@@ -32,7 +32,7 @@ interface AddUserModalProps {
 
 function AddUserModal({ onClose, onSuccess }: AddUserModalProps) {
   const [form, setForm] = useState<{ name: string; email: string; password: string; systemRole: SystemRole }>({
-    name: "", email: "", password: "", systemRole: SystemRole.USER,
+    name: "", email: "", password: "", systemRole: SYSTEM_ROLE.USER,
   })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -134,7 +134,7 @@ function AddUserModal({ onClose, onSuccess }: AddUserModalProps) {
               onChange={(e) => setForm(f => ({ ...f, systemRole: e.target.value as SystemRole }))}
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition bg-white"
             >
-              {Object.values(SystemRole).map((role) => (
+              {Object.values(SYSTEM_ROLE).map((role) => (
                 <option key={role} value={role}>{ROLE_LABELS[role]}</option>
               ))}
             </select>
@@ -288,7 +288,7 @@ export default function AdminUsersPage() {
                       onChange={(e) => handleRoleChange(user.id, e.target.value as SystemRole)}
                       className={`appearance-none pr-7 pl-2.5 py-1 rounded-full text-xs font-medium border-0 cursor-pointer focus:outline-none focus:ring-2 focus:ring-indigo-500 ${ROLE_COLORS[user.systemRole]}`}
                     >
-                      {Object.values(SystemRole).map((role) => (
+                      {Object.values(SYSTEM_ROLE).map((role) => (
                         <option key={role} value={role}>{ROLE_LABELS[role]}</option>
                       ))}
                     </select>

@@ -3,12 +3,12 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { requireStorePermission, storeRoleLabel } from "@/lib/permissions"
-import { StoreRole } from "@prisma/client"
+import { STORE_ROLE } from "@/lib/roles"
 import { z } from "zod"
 
 const addMemberSchema = z.object({
   email: z.string().email("Invalid email"),
-  role: z.nativeEnum(StoreRole),
+  role: z.nativeEnum(STORE_ROLE),
 })
 
 // GET /api/stores/[id]/members — list members of a store

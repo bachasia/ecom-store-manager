@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth"
 import { redirect } from "next/navigation"
 import { authOptions } from "@/lib/auth/options"
-import { SystemRole } from "@prisma/client"
+import { SYSTEM_ROLE } from "@/lib/roles"
 
 export default async function AdminLayout({
   children,
@@ -14,7 +14,7 @@ export default async function AdminLayout({
     redirect("/login")
   }
 
-  if (session.user?.systemRole !== SystemRole.SUPER_ADMIN) {
+  if (session.user?.systemRole !== SYSTEM_ROLE.SUPER_ADMIN) {
     redirect("/dashboard")
   }
 

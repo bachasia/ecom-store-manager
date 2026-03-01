@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server"
 import { hash } from "bcryptjs"
 import { prisma } from "@/lib/prisma"
-import { Prisma, SystemRole } from "@prisma/client"
+import { Prisma } from "@prisma/client"
+import { SYSTEM_ROLE } from "@/lib/roles"
 import { z } from "zod"
 
 const registerSchema = z.object({
@@ -53,7 +54,7 @@ export async function POST(req: Request) {
             email,
             password: hashedPassword,
             name: name || null,
-            systemRole: isFirstUser ? SystemRole.SUPER_ADMIN : SystemRole.USER,
+            systemRole: isFirstUser ? SYSTEM_ROLE.SUPER_ADMIN : SYSTEM_ROLE.USER,
           },
         })
 
