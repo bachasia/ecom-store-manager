@@ -35,6 +35,7 @@ export default function StoreSelect({
   const [mounted, setMounted] = useState(false)
   const [dropdownStyle, setDropdownStyle] = useState<{ top: number; left: number; width: number } | null>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     setMounted(true)
@@ -66,7 +67,11 @@ export default function StoreSelect({
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      if (!wrapperRef.current?.contains(event.target as Node)) {
+      const target = event.target as Node
+      const clickedTrigger = wrapperRef.current?.contains(target)
+      const clickedDropdown = dropdownRef.current?.contains(target)
+
+      if (!clickedTrigger && !clickedDropdown) {
         setOpen(false)
       }
     }
@@ -111,6 +116,7 @@ export default function StoreSelect({
 
       {open && mounted && dropdownStyle && createPortal(
         <div
+          ref={dropdownRef}
           className="fixed z-[100] max-h-64 overflow-auto rounded-xl border border-gray-200 bg-white shadow-lg"
           style={{
             top: dropdownStyle.top,

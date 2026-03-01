@@ -16,6 +16,7 @@ export default function LanguageSwitcher() {
   const [mounted, setMounted] = useState(false)
   const [dropdownStyle, setDropdownStyle] = useState<{ bottom: number; left: number; width: number } | null>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   const isViPath = pathname === "/vi" || pathname.startsWith("/vi/")
   const normalizedPath = pathname.replace(/^\/vi(?=\/|$)/, "") || "/"
@@ -37,7 +38,11 @@ export default function LanguageSwitcher() {
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
-      if (!wrapperRef.current?.contains(e.target as Node)) setOpen(false)
+      const target = e.target as Node
+      const clickedTrigger = wrapperRef.current?.contains(target)
+      const clickedDropdown = dropdownRef.current?.contains(target)
+
+      if (!clickedTrigger && !clickedDropdown) setOpen(false)
     }
     document.addEventListener("mousedown", handler)
     return () => document.removeEventListener("mousedown", handler)
@@ -84,6 +89,7 @@ export default function LanguageSwitcher() {
 
       {open && mounted && dropdownStyle && createPortal(
         <div
+          ref={dropdownRef}
           className="fixed z-[100] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
           style={{
             bottom: dropdownStyle.bottom,
