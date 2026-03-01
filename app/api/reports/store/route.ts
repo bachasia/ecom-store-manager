@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { getStoreIdsWithPermission } from "@/lib/permissions"
-import { getUserTimezone, buildDateRangeFilter } from "@/lib/utils/timezone"
+import { getUserTimezone, buildDateRangeFilter, utcToLocalYMD } from "@/lib/utils/timezone"
 
 // GET /api/reports/store
 // Params: startDate, endDate, groupBy=total|day|month
@@ -136,10 +136,11 @@ export async function GET(req: Request) {
       >()
 
       for (const order of orders) {
+        const localYMD = utcToLocalYMD(order.orderDate, timezone)
         const periodKey =
           groupBy === "day"
-            ? order.orderDate.toISOString().split("T")[0]
-            : order.orderDate.toISOString().substring(0, 7)
+            ? localYMD
+            : localYMD.substring(0, 7)
 
         let periodStores = trendMap.get(periodKey)
         if (!periodStores) {

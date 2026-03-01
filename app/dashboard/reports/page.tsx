@@ -47,7 +47,7 @@ function TableSkeleton() {
 export default function ReportsPage() {
   const t = useTranslations("reports")
   const tDash = useTranslations("dashboard")
-  const { timezone } = useUserTimezone()
+  const { timezone, loading: timezoneLoading } = useUserTimezone()
   const searchParams = useSearchParams()
   const router = useRouter()
 
@@ -92,10 +92,11 @@ export default function ReportsPage() {
   }, [])
 
   useEffect(() => {
+    if (timezoneLoading) return
     if (datePreset !== "custom") {
       setDateRange(getPresetRangeInTimezone(datePreset, timezone))
     }
-  }, [datePreset, timezone])
+  }, [datePreset, timezone, timezoneLoading])
 
   // ── Fetch per tab ─────────────────────────────────────────────────────────
   const buildParams = useCallback(() => {
@@ -170,18 +171,20 @@ export default function ReportsPage() {
     finally { setAlertsLoading(false) }
   }, [buildParams])
 
-  // Fetch khi tab thay đổi hoặc filter thay đổi
+  // Fetch khi tab thay đổi hoặc filter thay đổi — chờ timezone load xong
   useEffect(() => {
+    if (timezoneLoading) return
     if (activeTab === "daily") fetchDaily()
     if (activeTab === "sku") fetchSku()
     if (activeTab === "store") fetchStore()
     if (activeTab === "alerts") fetchAlerts()
-  }, [activeTab, dateRange, selectedStore])
+  }, [activeTab, dateRange, selectedStore, timezoneLoading])
 
   // Background fetch alert count khi filter thay đổi (chỉ khi không ở tab alerts để tránh double fetch)
   useEffect(() => {
+    if (timezoneLoading) return
     if (activeTab !== "alerts") fetchAlerts()
-  }, [dateRange, selectedStore])
+  }, [dateRange, selectedStore, timezoneLoading])
 
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleDatePreset = (preset: DatePreset) => {

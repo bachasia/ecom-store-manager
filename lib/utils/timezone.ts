@@ -1,6 +1,25 @@
 import { prisma } from "@/lib/prisma"
 
 /**
+ * Convert a UTC Date to the calendar date string "YYYY-MM-DD" in the given timezone.
+ * Used to bucket orderDate values by local calendar day instead of UTC day.
+ */
+export function utcToLocalYMD(utcDate: Date, timezone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(utcDate)
+
+  const year = parts.find((p) => p.type === "year")?.value ?? "1970"
+  const month = parts.find((p) => p.type === "month")?.value ?? "01"
+  const day = parts.find((p) => p.type === "day")?.value ?? "01"
+
+  return `${year}-${month}-${day}`
+}
+
+/**
  * Get the user's saved timezone from AppSetting.
  * Falls back to "UTC" if not set.
  */

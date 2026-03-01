@@ -1,10 +1,39 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useTranslations } from "next-intl"
 import CustomSelect from "@/components/ui/custom-select"
 import { useNotifier } from "@/components/ui/feedback-provider"
 import { useIsSuperAdmin } from "@/hooks/usePermissions"
+
+function formatGMTOffset(tz: string): string {
+  try {
+    const now = new Date()
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: tz,
+      timeZoneName: "shortOffset",
+    }).formatToParts(now)
+
+    const tzName = parts.find((p) => p.type === "timeZoneName")?.value ?? "GMT"
+    const match = tzName.match(/GMT([+-]\d+(?::\d+)?)?/)
+    if (!match?.[1]) return "GMT+00:00"
+
+    const sign = match[1][0]
+    const rest = match[1].slice(1)
+    const [hStr, mStr = "0"] = rest.split(":")
+    const h = String(parseInt(hStr)).padStart(2, "0")
+    const m = String(parseInt(mStr)).padStart(2, "0")
+    return `GMT${sign}${h}:${m}`
+  } catch {
+    return "GMT+00:00"
+  }
+}
+
+function buildTimezoneLabel(tz: string): string {
+  const offset = formatGMTOffset(tz)
+  const friendly = tz.replace(/_/g, " ").replace(/\//g, " / ")
+  return `(${offset}) ${friendly}`
+}
 
 interface PaymentGateway {
   id: string
@@ -24,6 +53,15 @@ export default function SettingsPage() {
   const t = useTranslations('settings')
   const { success: notifySuccess, error: notifyError, confirm } = useNotifier()
   const isSuperAdmin = useIsSuperAdmin()
+
+  const timezoneOptions = useMemo(
+    () =>
+      Intl.supportedValuesOf("timeZone")
+        .map((tz) => ({ value: tz, label: buildTimezoneLabel(tz) }))
+        .sort((a, b) => a.label.localeCompare(b.label)),
+    []
+  )
+
   const [gateways, setGateways] = useState<PaymentGateway[]>([])
   const [stores, setStores] = useState<Array<{ id: string; name: string }>>([])
   const [selectedStoreByGateway, setSelectedStoreByGateway] = useState<Record<string, string>>( {})
@@ -378,10 +416,10 @@ export default function SettingsPage() {
             <CustomSelect
               value={timezone}
               onChange={setTimezone}
-              className="w-64"
+              className="w-96"
               searchable
               searchPlaceholder={t('searchTimezone')}
-              options={Intl.supportedValuesOf('timeZone').map((tz) => ({ value: tz, label: tz }))}
+              options={timezoneOptions}
             />
             <button
               onClick={saveTimezone}

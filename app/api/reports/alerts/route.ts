@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { getStoreIdsWithPermission, requireStorePermission } from "@/lib/permissions"
-import { getUserTimezone, buildDateRangeFilter } from "@/lib/utils/timezone"
+import { getUserTimezone, buildDateRangeFilter, utcToLocalYMD } from "@/lib/utils/timezone"
 
 const ROAS_THRESHOLD_KEY = "roas_threshold"
 const DEFAULT_ROAS_THRESHOLD = 1.0
@@ -104,7 +104,7 @@ export async function GET(req: Request) {
     >()
 
     for (const order of orders) {
-      const date = order.orderDate.toISOString().split("T")[0]
+      const date = utcToLocalYMD(order.orderDate, timezone)
       const key = `${date}::${order.storeId}`
 
       const existing = dayStoreMap.get(key) || {

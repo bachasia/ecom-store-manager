@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { AlertTriangle, TrendingDown, Package, ChevronDown, ChevronUp, ExternalLink } from "lucide-react"
 import Link from "next/link"
+import { useUserTimezone } from "@/lib/hooks/useUserTimezone"
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -70,9 +71,9 @@ const fmtShort = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 0,
 })
 
-function formatDate(iso: string): string {
-  const d = new Date(iso + "T00:00:00")
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+function formatDate(iso: string, timezone: string): string {
+  const d = new Date(iso + "T12:00:00Z")
+  return d.toLocaleDateString("en-US", { timeZone: timezone, month: "short", day: "numeric", year: "numeric" })
 }
 
 // ── Section wrapper ───────────────────────────────────────────────────────────
@@ -159,6 +160,8 @@ function Skeleton() {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function AlertsPanel({ data, loading = false, basePath = "/dashboard" }: AlertsPanelProps) {
+  const { timezone } = useUserTimezone()
+
   if (loading) return <Skeleton />
 
   if (!data) {
@@ -215,7 +218,7 @@ export default function AlertsPanel({ data, loading = false, basePath = "/dashbo
           {negativeROI.map((alert) => (
             <div key={`${alert.date}-${alert.storeId}`} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors">
               <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-900">{formatDate(alert.date)}</p>
+                <p className="text-sm font-medium text-gray-900">{formatDate(alert.date, timezone)}</p>
                 <p className="text-xs text-gray-500 mt-0.5">{alert.storeName}</p>
               </div>
               <div className="flex items-center gap-6 shrink-0 ml-4">
@@ -255,7 +258,7 @@ export default function AlertsPanel({ data, loading = false, basePath = "/dashbo
           {lowROAS.map((alert) => (
             <div key={`${alert.date}-${alert.storeId}`} className="flex items-center justify-between px-5 py-3 hover:bg-gray-50 transition-colors">
               <div className="min-w-0">
-                <p className="text-sm font-medium text-gray-900">{formatDate(alert.date)}</p>
+                <p className="text-sm font-medium text-gray-900">{formatDate(alert.date, timezone)}</p>
                 <p className="text-xs text-gray-500 mt-0.5">{alert.storeName}</p>
               </div>
               <div className="flex items-center gap-6 shrink-0 ml-4">

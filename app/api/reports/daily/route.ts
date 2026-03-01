@@ -3,7 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { getStoreIdsWithPermission, requireStorePermission } from "@/lib/permissions"
-import { getUserTimezone, buildDateRangeFilter, dateStartOf, dateEndOf } from "@/lib/utils/timezone"
+import { getUserTimezone, buildDateRangeFilter, dateStartOf, dateEndOf, utcToLocalYMD } from "@/lib/utils/timezone"
 
 // GET /api/reports/daily
 // Params: storeId?, startDate, endDate, drilldown? (true = include per-store breakdown per day)
@@ -113,7 +113,7 @@ export async function GET(req: Request) {
     const dayStoreMap = new Map<string, StoreMetrics>() // key: "date::storeId"
 
     for (const order of orders) {
-      const date = order.orderDate.toISOString().split("T")[0]
+      const date = utcToLocalYMD(order.orderDate, timezone)
       const revenue = Number(order.total) - Number(order.refundAmount)
       const cogs = Number(order.totalCOGS)
       const adsCost = Number(order.allocatedAdsCost)

@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useUserTimezone } from "@/lib/hooks/useUserTimezone"
 import {
   LineChart,
   Line,
@@ -40,16 +41,15 @@ const COLORS = ["#6366f1", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function formatTick(dateStr: string, granularity: Granularity): string {
+function formatTick(dateStr: string, granularity: Granularity, timezone: string): string {
   if (granularity === "month") {
-    const [y, m] = dateStr.split("-")
-    return new Date(Number(y), Number(m) - 1, 1).toLocaleDateString("en-US", {
-      month: "short",
-      year: "2-digit",
-    })
+    // dateStr is "YYYY-MM" — use the 12th to stay safely inside the month in any tz
+    const d = new Date(dateStr + "-12T12:00:00Z")
+    return d.toLocaleDateString("en-US", { timeZone: timezone, month: "short", year: "2-digit" })
   }
-  const d = new Date(dateStr + "T00:00:00")
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+  // dateStr is "YYYY-MM-DD" — UTC noon stays in the same local calendar day
+  const d = new Date(dateStr + "T12:00:00Z")
+  return d.toLocaleDateString("en-US", { timeZone: timezone, month: "short", day: "numeric" })
 }
 
 const fmtShort = new Intl.NumberFormat("en-US", {
@@ -79,6 +79,7 @@ function Skeleton() {
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function StoreTrendChart({ trends, stores, loading = false }: StoreTrendChartProps) {
+  const { timezone } = useUserTimezone()
   const [metric, setMetric] = useState<MetricKey>("revenue")
   const [granularity, setGranularity] = useState<Granularity>("day")
 
@@ -190,7 +191,7 @@ export default function StoreTrendChart({ trends, stores, loading = false }: Sto
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis
             dataKey="date"
-            tickFormatter={(v) => formatTick(v, granularity)}
+            tickFormatter={(v) => formatTick(v, granularity, timezone)}
             style={{ fontSize: "11px" }}
             stroke="#9ca3af"
             tick={{ fill: "#6b7280" }}
@@ -203,7 +204,7 @@ export default function StoreTrendChart({ trends, stores, loading = false }: Sto
           />
           <Tooltip
             formatter={tooltipFormatter}
-            labelFormatter={(label) => formatTick(label, granularity)}
+            labelFormatter={(label) => formatTick(label, granularity, timezone)}
             contentStyle={{
               backgroundColor: "white",
               border: "1px solid #e5e7eb",

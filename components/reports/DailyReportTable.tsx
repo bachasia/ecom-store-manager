@@ -3,6 +3,7 @@
 import { useState, Fragment } from "react"
 import { ChevronDown, ChevronRight, TrendingUp, TrendingDown, Minus } from "lucide-react"
 import PlatformIcon from "@/components/ui/platform-icon"
+import { useUserTimezone } from "@/lib/hooks/useUserTimezone"
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -60,9 +61,17 @@ const fmtDec = new Intl.NumberFormat("en-US", {
   maximumFractionDigits: 2,
 })
 
-function formatDate(iso: string): string {
-  const d = new Date(iso + "T00:00:00")
-  return d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })
+function formatDate(iso: string, timezone: string): string {
+  // iso is already a YYYY-MM-DD local date bucketed in the user's timezone.
+  // Append T12:00:00Z so we parse a stable UTC noon — then format in the user's
+  // timezone so the displayed weekday/month/day matches the local bucket date.
+  const d = new Date(iso + "T12:00:00Z")
+  return d.toLocaleDateString("en-US", {
+    timeZone: timezone,
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+  })
 }
 
 function marginColor(margin: number): string {
@@ -141,6 +150,7 @@ export default function DailyReportTable({
   hasDrilldown = false,
   onExpandRow,
 }: DailyReportTableProps) {
+  const { timezone } = useUserTimezone()
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [drilldownCache, setDrilldownCache] = useState<Record<string, StoreDrilldown[]>>({})
   const [loadingDrilldown, setLoadingDrilldown] = useState<Set<string>>(new Set())
@@ -227,7 +237,7 @@ export default function DailyReportTable({
                           ? <ChevronDown className="h-4 w-4 text-gray-400 shrink-0" />
                           : <ChevronRight className="h-4 w-4 text-gray-400 shrink-0" />
                       )}
-                      {formatDate(row.date)}
+                      {formatDate(row.date, timezone)}
                     </span>
                   </td>
                   <td className="px-3 py-3 text-right text-gray-700">{row.orders}</td>

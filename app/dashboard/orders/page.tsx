@@ -45,7 +45,7 @@ export default function OrdersPage() {
   const t = useTranslations('orders')
   const tCommon = useTranslations('common')
   const tDashboard = useTranslations('dashboard')
-  const { timezone } = useUserTimezone()
+  const { timezone, loading: timezoneLoading } = useUserTimezone()
   const [orders, setOrders] = useState<Order[]>([])
   const [stores, setStores] = useState<Store[]>([])
   const [selectedStore, setSelectedStore] = useState("")
@@ -62,14 +62,16 @@ export default function OrdersPage() {
   }, [])
 
   useEffect(() => {
+    if (timezoneLoading) return
     fetchOrders()
-  }, [selectedStore, selectedStatus, search, dateRange, pagination.page])
+  }, [selectedStore, selectedStatus, search, dateRange, pagination.page, timezoneLoading])
 
   useEffect(() => {
+    if (timezoneLoading) return
     if (datePreset !== 'custom') {
       setDateRange(getPresetRangeInTimezone(datePreset, timezone))
     }
-  }, [datePreset, timezone])
+  }, [datePreset, timezone, timezoneLoading])
 
   const fetchStores = async () => {
     try {
@@ -82,6 +84,8 @@ export default function OrdersPage() {
   }
 
   const fetchOrders = async () => {
+    if (timezoneLoading) return
+
     setLoading(true)
     try {
       const params = new URLSearchParams({
@@ -112,6 +116,7 @@ export default function OrdersPage() {
 
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleDateString('vi-VN', {
+      timeZone: timezone,
       year: 'numeric', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit'
     })
   }
@@ -316,16 +321,18 @@ export default function OrdersPage() {
                 </tbody>
               </table>
             </div>
-            {pagination.totalPages > 1 && (
-              <div className="px-6 py-4 border-t flex items-center justify-between">
-                <div className="text-sm text-gray-500">{t('showing', { count: orders.length, total: pagination.total })}</div>
+            <div className="px-6 py-4 border-t flex items-center justify-between">
+              <div className="text-sm text-gray-500">{t('showing', { count: orders.length, total: pagination.total })}</div>
+              {pagination.totalPages > 1 ? (
                 <div className="flex items-center space-x-2">
                   <button onClick={() => setPagination({...pagination, page: pagination.page - 1})} disabled={pagination.page === 1} className="px-3 py-1.5 rounded-lg border text-sm disabled:opacity-50">{t('previous')}</button>
                   <span className="text-sm">Page {pagination.page} / {pagination.totalPages}</span>
                   <button onClick={() => setPagination({...pagination, page: pagination.page + 1})} disabled={pagination.page === pagination.totalPages} className="px-3 py-1.5 rounded-lg border text-sm disabled:opacity-50">{t('next')}</button>
                 </div>
-              </div>
-            )}
+              ) : (
+                <span className="text-sm text-gray-400">Page 1 / 1</span>
+              )}
+            </div>
           </>
         )}
       </div>
