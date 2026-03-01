@@ -57,10 +57,14 @@
     "tsx": "^4.21.0"
   },
   "optionalDependencies": {
+    "@next/swc-win32-x64-msvc": "^16.1.6",
+    "@parcel/watcher-win32-x64": "^2.5.6",
+    "@swc/core-win32-x64-msvc": "^1.15.13",
     "@next/swc-linux-arm64-gnu": "^16.1.6",
     "@next/swc-linux-arm64-musl": "^16.1.6",
     "@next/swc-linux-x64-gnu": "^16.1.6",
     "@next/swc-linux-x64-musl": "^16.1.6",
+    "lightningcss-win32-x64-msvc": "^1.30.2",
     "@parcel/watcher-linux-arm64-glibc": "^2.5.6",
     "@parcel/watcher-linux-arm64-musl": "^2.5.6",
     "@parcel/watcher-linux-x64-glibc": "^2.5.6"

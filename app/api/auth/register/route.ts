@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server"
 import { hash } from "bcryptjs"
 import { prisma } from "@/lib/prisma"
+import { Prisma, SystemRole } from "@prisma/client"
 import { z } from "zod"
-import { SystemRole } from "@prisma/client"
 
 const registerSchema = z.object({
   email: z.string().email("Invalid email"),
@@ -12,60 +12,68 @@ const registerSchema = z.object({
 
 export async function POST(req: Request) {
   try {
-    // Nếu chưa có user nào trong DB → cho phép đăng ký user đầu tiên (bootstrap)
-    const userCount = await prisma.user.count()
-    if (userCount === 0) {
-      // Bỏ qua setting, tiếp tục tạo user đầu tiên
-    } else {
-      // Kiểm tra setting cho phép đăng ký không (mặc định: tắt)
-      const registrationSetting = await prisma.appSetting.findUnique({
-        where: { key: "allow_registration" }
-      })
-      if (registrationSetting?.value !== "true") {
-        return NextResponse.json(
-          { error: "Registration is currently disabled. Please contact the administrator." },
-          { status: 403 }
-        )
-      }
-    }
-
     const body = await req.json()
     const { email, password, name } = registerSchema.parse(body)
-
-    // Check if user already exists
-    const existingUser = await prisma.user.findUnique({
-      where: { email }
-    })
-
-    if (existingUser) {
-      return NextResponse.json(
-        { error: "Email already in use" },
-        { status: 400 }
-      )
-    }
 
     // Hash password
     const hashedPassword = await hash(password, 12)
 
-    // First user becomes SUPER_ADMIN, subsequent users are regular USER
-    const isFirstUser = userCount === 0
+    const result = await prisma.$transaction(
+      async (tx) => {
+        const userCount = await tx.user.count()
 
-    // Create user
-    const user = await prisma.user.create({
-      data: {
-        email,
-        password: hashedPassword,
-        name: name || null,
-        systemRole: isFirstUser ? SystemRole.SUPER_ADMIN : SystemRole.USER,
+        if (userCount > 0) {
+          const registrationSetting = await tx.appSetting.findUnique({
+            where: { key: "allow_registration" },
+          })
+
+          if (registrationSetting?.value !== "true") {
+            return {
+              error: "Registration is currently disabled. Please contact the administrator.",
+              status: 403,
+            }
+          }
+        }
+
+        const existingUser = await tx.user.findUnique({
+          where: { email },
+        })
+
+        if (existingUser) {
+          return {
+            error: "Email already in use",
+            status: 400,
+          }
+        }
+
+        const isFirstUser = userCount === 0
+
+        const user = await tx.user.create({
+          data: {
+            email,
+            password: hashedPassword,
+            name: name || null,
+            systemRole: isFirstUser ? SystemRole.SUPER_ADMIN : SystemRole.USER,
+          },
+        })
+
+        return { user }
+      },
+      {
+        isolationLevel: Prisma.TransactionIsolationLevel.Serializable,
       }
-    })
+    )
+
+    if ("error" in result) {
+      return NextResponse.json({ error: result.error }, { status: result.status })
+    }
 
     return NextResponse.json(
       {
         user: {
-          id: user.id,
-          email: user.email,
-          name: user.name,
+          id: result.user.id,
+          email: result.user.email,
+          name: result.user.name,
         }
       },
       { status: 201 }
@@ -74,6 +82,13 @@ export async function POST(req: Request) {
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { error: error.issues[0].message },
+        { status: 400 }
+      )
+    }
+
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return NextResponse.json(
+        { error: "Email already in use" },
         { status: 400 }
       )
     }

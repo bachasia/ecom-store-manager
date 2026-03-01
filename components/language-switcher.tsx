@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { usePathname } from "next/navigation"
 import { Check, ChevronDown, Globe } from "lucide-react"
 
@@ -12,6 +13,8 @@ const LOCALES = [
 export default function LanguageSwitcher() {
   const pathname = usePathname()
   const [open, setOpen] = useState(false)
+  const [mounted, setMounted] = useState(false)
+  const [dropdownStyle, setDropdownStyle] = useState<{ bottom: number; left: number; width: number } | null>(null)
   const wrapperRef = useRef<HTMLDivElement>(null)
 
   const isViPath = pathname === "/vi" || pathname.startsWith("/vi/")
@@ -29,12 +32,40 @@ export default function LanguageSwitcher() {
   }
 
   useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (!wrapperRef.current?.contains(e.target as Node)) setOpen(false)
     }
     document.addEventListener("mousedown", handler)
     return () => document.removeEventListener("mousedown", handler)
   }, [])
+
+  useEffect(() => {
+    if (!open) return
+
+    const updatePosition = () => {
+      const rect = wrapperRef.current?.getBoundingClientRect()
+      if (!rect) return
+
+      setDropdownStyle({
+        bottom: window.innerHeight - rect.top + 6,
+        left: rect.left,
+        width: rect.width,
+      })
+    }
+
+    updatePosition()
+    window.addEventListener("resize", updatePosition)
+    window.addEventListener("scroll", updatePosition, true)
+
+    return () => {
+      window.removeEventListener("resize", updatePosition)
+      window.removeEventListener("scroll", updatePosition, true)
+    }
+  }, [open])
 
   return (
     <div ref={wrapperRef} className="relative">
@@ -51,8 +82,15 @@ export default function LanguageSwitcher() {
         <ChevronDown className={`h-4 w-4 text-gray-400 transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
 
-      {open && (
-        <div className="absolute bottom-full left-0 right-0 z-50 mb-1.5 overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg">
+      {open && mounted && dropdownStyle && createPortal(
+        <div
+          className="fixed z-[100] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-lg"
+          style={{
+            bottom: dropdownStyle.bottom,
+            left: dropdownStyle.left,
+            width: dropdownStyle.width,
+          }}
+        >
           {LOCALES.map((loc) => (
             <button
               key={loc.value}
@@ -69,7 +107,8 @@ export default function LanguageSwitcher() {
               {currentLocale === loc.value && <Check className="h-4 w-4 text-indigo-600 shrink-0" />}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   )
