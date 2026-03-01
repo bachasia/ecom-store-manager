@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { getStoreIdsWithPermission } from "@/lib/permissions"
+import { getUserTimezone, buildDateRangeFilter } from "@/lib/utils/timezone"
 
 // GET /api/reports/store
 // Params: startDate, endDate, groupBy=total|day|month
@@ -38,21 +39,13 @@ export async function GET(req: Request) {
     )
 
     // --- Build order filter ---
+    const timezone = await getUserTimezone(session.user.id)
     const orderWhere: any = {
       storeId: { in: storeIds },
       status: { in: ["completed", "processing", "paid", "authorized"] },
     }
-    if (startDate || endDate) {
-      orderWhere.orderDate = {}
-      if (startDate) {
-        orderWhere.orderDate.gte = new Date(`${startDate}T00:00:00.000Z`)
-      }
-      if (endDate) {
-        const endExclusive = new Date(`${endDate}T00:00:00.000Z`)
-        endExclusive.setUTCDate(endExclusive.getUTCDate() + 1)
-        orderWhere.orderDate.lt = endExclusive
-      }
-    }
+    const dateFilter = buildDateRangeFilter(startDate, endDate, timezone)
+    if (dateFilter) orderWhere.orderDate = dateFilter
 
     // --- Query orders ---
     const orders = await prisma.order.findMany({

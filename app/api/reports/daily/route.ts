@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { getStoreIdsWithPermission, requireStorePermission } from "@/lib/permissions"
+import { getUserTimezone, buildDateRangeFilter, dateStartOf, dateEndOf } from "@/lib/utils/timezone"
 
 // GET /api/reports/daily
 // Params: storeId?, startDate, endDate, drilldown? (true = include per-store breakdown per day)
@@ -53,26 +54,17 @@ export async function GET(req: Request) {
     }
 
     // --- Build order filter ---
+    const timezone = await getUserTimezone(session.user.id)
     const orderWhere: any = {
       storeId: { in: storeIds },
       status: { in: ["completed", "processing", "paid", "authorized"] },
     }
     // singleDate overrides startDate/endDate — fetch exactly one calendar day
     if (singleDate) {
-      const dayStart = new Date(`${singleDate}T00:00:00.000Z`)
-      const dayEnd = new Date(`${singleDate}T00:00:00.000Z`)
-      dayEnd.setUTCDate(dayEnd.getUTCDate() + 1)
-      orderWhere.orderDate = { gte: dayStart, lt: dayEnd }
-    } else if (startDate || endDate) {
-      orderWhere.orderDate = {}
-      if (startDate) {
-        orderWhere.orderDate.gte = new Date(`${startDate}T00:00:00.000Z`)
-      }
-      if (endDate) {
-        const endExclusive = new Date(`${endDate}T00:00:00.000Z`)
-        endExclusive.setUTCDate(endExclusive.getUTCDate() + 1)
-        orderWhere.orderDate.lt = endExclusive
-      }
+      orderWhere.orderDate = { gte: dateStartOf(singleDate, timezone), lt: dateEndOf(singleDate, timezone) }
+    } else {
+      const dateFilter = buildDateRangeFilter(startDate, endDate, timezone)
+      if (dateFilter) orderWhere.orderDate = dateFilter
     }
 
     // --- Query orders ---

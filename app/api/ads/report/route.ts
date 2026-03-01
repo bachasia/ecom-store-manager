@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { getStoreIdsWithPermission } from "@/lib/permissions"
+import { getUserTimezone, buildDateOnlyRangeFilter } from "@/lib/utils/timezone"
 
 /**
  * GET /api/ads/report
@@ -46,14 +47,12 @@ export async function GET(req: Request) {
       return NextResponse.json({ rows: [], summary: emptySummary(), accountNames: [] })
     }
 
-    // Query AdsCost
+    // Query AdsCost — AdsCost.date is a Date-only column, no timezone shift needed
+    const adsDateFilter = buildDateOnlyRangeFilter(from, to)
     const adsCosts = await prisma.adsCost.findMany({
       where: {
         storeId: { in: storeIds },
-        date: {
-          gte: new Date(from),
-          lte: new Date(to),
-        },
+        ...(adsDateFilter ? { date: adsDateFilter } : {}),
       },
       orderBy: [{ date: "asc" }, { accountName: "asc" }],
       select: {

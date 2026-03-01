@@ -65,14 +65,21 @@ const PRESETS = [
   { labelKey: "reportPresetMonth" as const, days: 0, type: "month" as const },
 ]
 
+function toLocalYMD(date: Date): string {
+  const y = date.getFullYear()
+  const m = String(date.getMonth() + 1).padStart(2, "0")
+  const d = String(date.getDate()).padStart(2, "0")
+  return `${y}-${m}-${d}`
+}
+
 function getPresetDates(days: number, type?: "month") {
   const today = new Date()
-  const to = today.toISOString().split("T")[0]
+  const to = toLocalYMD(today)
   if (type === "month") {
-    const from = new Date(today.getFullYear(), today.getMonth(), 1).toISOString().split("T")[0]
+    const from = toLocalYMD(new Date(today.getFullYear(), today.getMonth(), 1))
     return { from, to }
   }
-  const from = new Date(today.getTime() - days * 24 * 60 * 60 * 1000).toISOString().split("T")[0]
+  const from = toLocalYMD(new Date(today.getFullYear(), today.getMonth(), today.getDate() - days))
   return { from, to }
 }
 

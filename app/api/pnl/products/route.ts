@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { calculatePLByProduct } from "@/lib/calculations/pnl"
 import { getStoreIdsWithPermission, requireStorePermission } from "@/lib/permissions"
+import { getUserTimezone, buildDateRangeFilter } from "@/lib/utils/timezone"
 
 // GET /api/pnl/products - Get P&L metrics by product
 export async function GET(req: Request) {
@@ -38,17 +39,11 @@ export async function GET(req: Request) {
       }
     }
 
-    // Date filters (inclusive by calendar day)
-    if (startDate || endDate) {
-      where.order.orderDate = {}
-      if (startDate) {
-        where.order.orderDate.gte = new Date(`${startDate}T00:00:00.000Z`)
-      }
-      if (endDate) {
-        const endExclusive = new Date(`${endDate}T00:00:00.000Z`)
-        endExclusive.setUTCDate(endExclusive.getUTCDate() + 1)
-        where.order.orderDate.lt = endExclusive
-      }
+    // Date filters (inclusive by calendar day in user's timezone)
+    const timezone = await getUserTimezone(session.user.id)
+    const dateFilter = buildDateRangeFilter(startDate, endDate, timezone)
+    if (dateFilter) {
+      where.order.orderDate = dateFilter
     }
 
     // Only include completed orders

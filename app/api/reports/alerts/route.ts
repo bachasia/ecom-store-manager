@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { getStoreIdsWithPermission, requireStorePermission } from "@/lib/permissions"
+import { getUserTimezone, buildDateRangeFilter } from "@/lib/utils/timezone"
 
 const ROAS_THRESHOLD_KEY = "roas_threshold"
 const DEFAULT_ROAS_THRESHOLD = 1.0
@@ -66,23 +67,14 @@ export async function GET(req: Request) {
       : DEFAULT_ROAS_THRESHOLD
 
     // --- Build date filter ---
-    const dateFilter: any = {}
-    if (startDate) {
-      dateFilter.gte = new Date(`${startDate}T00:00:00.000Z`)
-    }
-    if (endDate) {
-      const endExclusive = new Date(`${endDate}T00:00:00.000Z`)
-      endExclusive.setUTCDate(endExclusive.getUTCDate() + 1)
-      dateFilter.lt = endExclusive
-    }
+    const timezone = await getUserTimezone(session.user.id)
+    const dateFilter = buildDateRangeFilter(startDate, endDate, timezone)
 
     const orderWhere: any = {
       storeId: { in: storeIds },
       status: { in: ["completed", "processing", "paid", "authorized"] },
     }
-    if (Object.keys(dateFilter).length > 0) {
-      orderWhere.orderDate = dateFilter
-    }
+    if (dateFilter) orderWhere.orderDate = dateFilter
 
     // --- Query all orders in range (for negative ROI & low ROAS) ---
     const orders = await prisma.order.findMany({

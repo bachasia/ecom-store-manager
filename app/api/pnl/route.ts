@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { calculateAggregatePL, calculatePLByDate, calculatePLByMonth } from "@/lib/calculations/pnl"
 import { getStoreIdsWithPermission, requireStorePermission } from "@/lib/permissions"
+import { getUserTimezone, buildDateRangeFilter, buildDateOnlyRangeFilter } from "@/lib/utils/timezone"
 
 // GET /api/pnl - Get P&L metrics with filters
 export async function GET(req: Request) {
@@ -49,17 +50,11 @@ export async function GET(req: Request) {
       accessibleStores = userStores
     }
 
-    // Date filters (inclusive by calendar day)
-    if (startDate || endDate) {
-      where.orderDate = {}
-      if (startDate) {
-        where.orderDate.gte = new Date(`${startDate}T00:00:00.000Z`)
-      }
-      if (endDate) {
-        const endExclusive = new Date(`${endDate}T00:00:00.000Z`)
-        endExclusive.setUTCDate(endExclusive.getUTCDate() + 1)
-        where.orderDate.lt = endExclusive
-      }
+    // Date filters (inclusive by calendar day in user's timezone)
+    const timezone = await getUserTimezone(session.user.id)
+    const dateFilter = buildDateRangeFilter(startDate, endDate, timezone)
+    if (dateFilter) {
+      where.orderDate = dateFilter
     }
 
     // Only include completed orders
@@ -231,12 +226,8 @@ export async function GET(req: Request) {
       const adsWhere: any = {
         storeId: where.storeId,
       }
-      if (startDate) adsWhere.date = { gte: new Date(`${startDate}T00:00:00.000Z`) }
-      if (endDate) {
-        const endExclusive = new Date(`${endDate}T00:00:00.000Z`)
-        endExclusive.setUTCDate(endExclusive.getUTCDate() + 1)
-        adsWhere.date = { ...adsWhere.date, lt: endExclusive }
-      }
+      const adsDateFilter = buildDateOnlyRangeFilter(startDate, endDate)
+      if (adsDateFilter) adsWhere.date = adsDateFilter
       const adsCostRows = await prisma.adsCost.findMany({
         where: adsWhere,
         select: { spend: true },
