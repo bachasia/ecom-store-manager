@@ -12,6 +12,104 @@ export function toYMD(date: Date): string {
   return `${y}-${m}-${d}`
 }
 
+export function toYMDInTimezone(date: Date, timezone: string): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: timezone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date)
+
+  const year = parts.find((part) => part.type === "year")?.value ?? "1970"
+  const month = parts.find((part) => part.type === "month")?.value ?? "01"
+  const day = parts.find((part) => part.type === "day")?.value ?? "01"
+
+  return `${year}-${month}-${day}`
+}
+
+function addDays(ymd: string, days: number): string {
+  const [year, month, day] = ymd.split("-").map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day + days))
+  return toYMD(date)
+}
+
+export function getDaySpan(startDate: string, endDate: string): number {
+  const [startYear, startMonth, startDay] = startDate.split("-").map(Number)
+  const [endYear, endMonth, endDay] = endDate.split("-").map(Number)
+
+  const start = Date.UTC(startYear, startMonth - 1, startDay)
+  const end = Date.UTC(endYear, endMonth - 1, endDay)
+
+  return Math.max(1, Math.floor((end - start) / 86400000) + 1)
+}
+
+export function getPreviousDateRange(range: DateRange): DateRange {
+  if (!range.startDate || !range.endDate) {
+    return range
+  }
+
+  const span = getDaySpan(range.startDate, range.endDate)
+  const previousEnd = addDays(range.startDate, -1)
+  const previousStart = addDays(previousEnd, -(span - 1))
+
+  return {
+    startDate: previousStart,
+    endDate: previousEnd,
+  }
+}
+
+export function getPresetRangeInTimezone(
+  preset: Exclude<DatePreset, "custom">,
+  timezone: string,
+  now: Date = new Date()
+): DateRange {
+  const today = toYMDInTimezone(now, timezone)
+
+  if (preset === "today") {
+    return { startDate: today, endDate: today }
+  }
+
+  if (preset === "yesterday") {
+    const yesterday = addDays(today, -1)
+    return { startDate: yesterday, endDate: yesterday }
+  }
+
+  if (preset === "mtd") {
+    return {
+      startDate: `${today.slice(0, 8)}01`,
+      endDate: today,
+    }
+  }
+
+  if (preset === "last7") {
+    return { startDate: addDays(today, -6), endDate: today }
+  }
+
+  if (preset === "last30") {
+    return { startDate: addDays(today, -29), endDate: today }
+  }
+
+  if (preset === "lastMonth") {
+    const [year, month] = today.split("-").map(Number)
+    const start = new Date(Date.UTC(year, month - 2, 1))
+    const end = new Date(Date.UTC(year, month - 1, 0))
+    return {
+      startDate: toYMD(start),
+      endDate: toYMD(end),
+    }
+  }
+
+  if (preset === "lastYear") {
+    const year = Number(today.slice(0, 4)) - 1
+    return {
+      startDate: `${year}-01-01`,
+      endDate: `${year}-12-31`,
+    }
+  }
+
+  return { startDate: "", endDate: today }
+}
+
 export function getPresetRange(
   preset: Exclude<DatePreset, "custom">,
   now: Date = new Date()

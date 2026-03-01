@@ -12,7 +12,8 @@ import SKUReportTable, { type SKURow } from "@/components/reports/SKUReportTable
 import StoreComparisonTable, { type StoreComparisonRow } from "@/components/reports/StoreComparisonTable"
 import StoreTrendChart, { type TrendPoint, type StoreMeta } from "@/components/reports/StoreTrendChart"
 import AlertsPanel, { type AlertsData } from "@/components/reports/AlertsPanel"
-import { getAlertCount, getPresetRange } from "@/lib/reports/helpers"
+import { useUserTimezone } from "@/lib/hooks/useUserTimezone"
+import { getAlertCount, getPresetRangeInTimezone } from "@/lib/reports/helpers"
 
 type TabId = "daily" | "sku" | "store" | "alerts"
 
@@ -46,6 +47,7 @@ function TableSkeleton() {
 export default function ReportsPage() {
   const t = useTranslations("reports")
   const tDash = useTranslations("dashboard")
+  const { timezone } = useUserTimezone()
   const searchParams = useSearchParams()
   const router = useRouter()
 
@@ -58,7 +60,7 @@ export default function ReportsPage() {
   const [stores, setStores] = useState<Store[]>([])
   const [selectedStore, setSelectedStore] = useState<string>("")
   const [datePreset, setDatePreset] = useState<DatePreset>("mtd")
-  const [dateRange, setDateRange] = useState(() => getPresetRange("mtd"))
+  const [dateRange, setDateRange] = useState(() => getPresetRangeInTimezone("mtd", "UTC"))
 
   // ── Data states ───────────────────────────────────────────────────────────
   const [dailyData, setDailyData] = useState<DailyRow[]>([])
@@ -88,6 +90,12 @@ export default function ReportsPage() {
       })
       .catch(() => {})
   }, [])
+
+  useEffect(() => {
+    if (datePreset !== "custom") {
+      setDateRange(getPresetRangeInTimezone(datePreset, timezone))
+    }
+  }, [datePreset, timezone])
 
   // ── Fetch per tab ─────────────────────────────────────────────────────────
   const buildParams = useCallback(() => {
@@ -178,7 +186,7 @@ export default function ReportsPage() {
   // ── Handlers ──────────────────────────────────────────────────────────────
   const handleDatePreset = (preset: DatePreset) => {
     setDatePreset(preset)
-    if (preset !== "custom") setDateRange(getPresetRange(preset))
+    if (preset !== "custom") setDateRange(getPresetRangeInTimezone(preset, timezone))
   }
 
   const setTab = (tab: TabId) => {

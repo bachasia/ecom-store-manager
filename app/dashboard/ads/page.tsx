@@ -8,6 +8,8 @@ import StoreSelect from "@/components/ui/store-select"
 import { useNotifier } from "@/components/ui/feedback-provider"
 import MultiAccountImport from "@/components/ads/MultiAccountImport"
 import AdsReport from "@/components/ads/AdsReport"
+import { useUserTimezone } from "@/lib/hooks/useUserTimezone"
+import { toYMDInTimezone } from "@/lib/reports/helpers"
 
 interface Store {
   id: string
@@ -36,7 +38,7 @@ interface ManualFormState {
 }
 
 const defaultManualForm: ManualFormState = {
-  date: new Date().toISOString().split("T")[0],
+  date: "",
   campaignName: "",
   adsetName: "",
   spend: "",
@@ -47,6 +49,7 @@ const defaultManualForm: ManualFormState = {
 export default function AdsPage() {
   const t = useTranslations("ads")
   const { success: notifySuccess, error: notifyError } = useNotifier()
+  const { timezone } = useUserTimezone()
 
   // shared
   const [stores, setStores] = useState<Store[]>([])
@@ -78,6 +81,17 @@ export default function AdsPage() {
   useEffect(() => {
     fetchStores()
   }, [])
+
+  useEffect(() => {
+    setManualForm((prev) => (
+      prev.date
+        ? prev
+        : {
+            ...prev,
+            date: toYMDInTimezone(new Date(), timezone),
+          }
+    ))
+  }, [timezone])
 
   const fetchStores = async () => {
     try {

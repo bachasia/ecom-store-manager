@@ -11,6 +11,8 @@ import StoreComparisonChart from "@/components/dashboard/StoreComparisonChart"
 import RevenueByUtmSourceChart from "@/components/dashboard/RevenueByUtmSourceChart"
 import StoreSelect from "@/components/ui/store-select"
 import DateRangeSelect, { type DatePreset } from "@/components/ui/date-range-select"
+import { useUserTimezone } from "@/lib/hooks/useUserTimezone"
+import { getPresetRangeInTimezone, getPreviousDateRange } from "@/lib/reports/helpers"
 
 interface Store {
   id: string
@@ -18,68 +20,14 @@ interface Store {
   platform: string
 }
 
-const toYMD = (date: Date) => {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
-const getPresetRange = (preset: Exclude<DatePreset, 'custom'>) => {
-  const now = new Date()
-
-  if (preset === 'today') {
-    const today = toYMD(now)
-    return { startDate: today, endDate: today }
-  }
-
-  if (preset === 'yesterday') {
-    const d = new Date(now)
-    d.setDate(d.getDate() - 1)
-    const y = toYMD(d)
-    return { startDate: y, endDate: y }
-  }
-
-  if (preset === 'mtd') {
-    const start = new Date(now.getFullYear(), now.getMonth(), 1)
-    return { startDate: toYMD(start), endDate: toYMD(now) }
-  }
-
-  if (preset === 'last7') {
-    const start = new Date(now)
-    start.setDate(start.getDate() - 6)
-    return { startDate: toYMD(start), endDate: toYMD(now) }
-  }
-
-  if (preset === 'last30') {
-    const start = new Date(now)
-    start.setDate(start.getDate() - 29)
-    return { startDate: toYMD(start), endDate: toYMD(now) }
-  }
-
-  if (preset === 'lastMonth') {
-    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    const end = new Date(now.getFullYear(), now.getMonth(), 0)
-    return { startDate: toYMD(start), endDate: toYMD(end) }
-  }
-
-  if (preset === 'lastYear') {
-    const start = new Date(now.getFullYear() - 1, 0, 1)
-    const end = new Date(now.getFullYear() - 1, 11, 31)
-    return { startDate: toYMD(start), endDate: toYMD(end) }
-  }
-
-  // allTime
-  return { startDate: '', endDate: toYMD(now) }
-}
-
 export default function DashboardPage() {
   const t = useTranslations('dashboard')
+  const { timezone } = useUserTimezone()
   
   const [stores, setStores] = useState<Store[]>([])
   const [selectedStore, setSelectedStore] = useState<string>("")
   const [datePreset, setDatePreset] = useState<DatePreset>('mtd')
-  const [dateRange, setDateRange] = useState(() => getPresetRange('mtd'))
+  const [dateRange, setDateRange] = useState(() => getPresetRangeInTimezone('mtd', 'UTC'))
   
   const [plData, setPlData] = useState<any>(null)
   const [chartData, setChartData] = useState<any[]>([])
@@ -105,6 +53,12 @@ export default function DashboardPage() {
     }
   }, [selectedStore, dateRange, stores])
 
+  useEffect(() => {
+    if (datePreset !== 'custom') {
+      setDateRange(getPresetRangeInTimezone(datePreset, timezone))
+    }
+  }, [datePreset, timezone])
+
   const fetchStores = async () => {
     try {
       const response = await fetch("/api/stores")
@@ -126,13 +80,7 @@ export default function DashboardPage() {
         endDate: dateRange.endDate,
       }
 
-      // Tính period trước để fetch song song
-      const currentStart = new Date(dateRange.startDate)
-      const currentEnd = new Date(dateRange.endDate)
-      const dayMs = 24 * 60 * 60 * 1000
-      const periodDays = Math.max(1, Math.floor((currentEnd.getTime() - currentStart.getTime()) / dayMs) + 1)
-      const prevEnd = new Date(currentStart.getTime() - dayMs)
-      const prevStart = new Date(prevEnd.getTime() - (periodDays - 1) * dayMs)
+      const previousRange = getPreviousDateRange(dateRange)
 
       const buildUrl = (params: Record<string, string>) =>
         `/api/pnl?${new URLSearchParams(params)}`
@@ -146,8 +94,8 @@ export default function DashboardPage() {
           fetch(buildUrl({ ...base, groupBy: 'utmSource' })).then(r => r.json()),
           fetch(buildUrl({
             ...(selectedStore && { storeId: selectedStore }),
-            startDate: prevStart.toISOString().split('T')[0],
-            endDate: prevEnd.toISOString().split('T')[0],
+            startDate: previousRange.startDate,
+            endDate: previousRange.endDate,
             groupBy: 'total'
           })).then(r => r.json()),
           fetch(buildUrl({ ...base, groupBy: 'country' })).then(r => r.json()),
@@ -186,7 +134,7 @@ export default function DashboardPage() {
   const handlePresetChange = (preset: DatePreset) => {
     setDatePreset(preset)
     if (preset !== 'custom') {
-      setDateRange(getPresetRange(preset))
+      setDateRange(getPresetRangeInTimezone(preset, timezone))
     }
   }
 

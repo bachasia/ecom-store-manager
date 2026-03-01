@@ -6,6 +6,8 @@ import { ShoppingCart, Search, RefreshCw, Eye } from "lucide-react"
 import StoreSelect from "@/components/ui/store-select"
 import DateRangeSelect, { type DatePreset } from "@/components/ui/date-range-select"
 import CustomSelect from "@/components/ui/custom-select"
+import { useUserTimezone } from "@/lib/hooks/useUserTimezone"
+import { getPresetRangeInTimezone } from "@/lib/reports/helpers"
 
 interface Order {
   id: string
@@ -39,72 +41,18 @@ function getPlatformIcon(platform?: string): string | null {
   return null
 }
 
-const toYMD = (date: Date) => {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}
-
-const getPresetRange = (preset: Exclude<DatePreset, 'custom'>) => {
-  const now = new Date()
-
-  if (preset === 'today') {
-    const today = toYMD(now)
-    return { startDate: today, endDate: today }
-  }
-
-  if (preset === 'yesterday') {
-    const d = new Date(now)
-    d.setDate(d.getDate() - 1)
-    const y = toYMD(d)
-    return { startDate: y, endDate: y }
-  }
-
-  if (preset === 'mtd') {
-    const start = new Date(now.getFullYear(), now.getMonth(), 1)
-    return { startDate: toYMD(start), endDate: toYMD(now) }
-  }
-
-  if (preset === 'last7') {
-    const start = new Date(now)
-    start.setDate(start.getDate() - 6)
-    return { startDate: toYMD(start), endDate: toYMD(now) }
-  }
-
-  if (preset === 'last30') {
-    const start = new Date(now)
-    start.setDate(start.getDate() - 29)
-    return { startDate: toYMD(start), endDate: toYMD(now) }
-  }
-
-  if (preset === 'lastMonth') {
-    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1)
-    const end = new Date(now.getFullYear(), now.getMonth(), 0)
-    return { startDate: toYMD(start), endDate: toYMD(end) }
-  }
-
-  if (preset === 'lastYear') {
-    const start = new Date(now.getFullYear() - 1, 0, 1)
-    const end = new Date(now.getFullYear() - 1, 11, 31)
-    return { startDate: toYMD(start), endDate: toYMD(end) }
-  }
-
-  // allTime
-  return { startDate: '', endDate: toYMD(now) }
-}
-
 export default function OrdersPage() {
   const t = useTranslations('orders')
   const tCommon = useTranslations('common')
   const tDashboard = useTranslations('dashboard')
+  const { timezone } = useUserTimezone()
   const [orders, setOrders] = useState<Order[]>([])
   const [stores, setStores] = useState<Store[]>([])
   const [selectedStore, setSelectedStore] = useState("")
   const [selectedStatus, setSelectedStatus] = useState("")
   const [search, setSearch] = useState("")
   const [datePreset, setDatePreset] = useState<DatePreset>('mtd')
-  const [dateRange, setDateRange] = useState(() => getPresetRange('mtd'))
+  const [dateRange, setDateRange] = useState(() => getPresetRangeInTimezone('mtd', 'UTC'))
   const [loading, setLoading] = useState(true)
   const [selectedOrder, setSelectedOrder] = useState<string | null>(null)
   const [pagination, setPagination] = useState({ page: 1, limit: 50, total: 0, totalPages: 0 })
@@ -116,6 +64,12 @@ export default function OrdersPage() {
   useEffect(() => {
     fetchOrders()
   }, [selectedStore, selectedStatus, search, dateRange, pagination.page])
+
+  useEffect(() => {
+    if (datePreset !== 'custom') {
+      setDateRange(getPresetRangeInTimezone(datePreset, timezone))
+    }
+  }, [datePreset, timezone])
 
   const fetchStores = async () => {
     try {
@@ -187,7 +141,7 @@ export default function OrdersPage() {
   const handlePresetChange = (preset: DatePreset) => {
     setDatePreset(preset)
     if (preset !== 'custom') {
-      setDateRange(getPresetRange(preset))
+      setDateRange(getPresetRangeInTimezone(preset, timezone))
       setPagination((p) => ({ ...p, page: 1 }))
     }
   }

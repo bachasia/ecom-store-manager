@@ -4,6 +4,8 @@ import React, { useState, useEffect, useCallback } from "react"
 import { useTranslations } from "next-intl"
 import AdsSpendChart from "./AdsSpendChart"
 import StoreSelect from "@/components/ui/store-select"
+import { useUserTimezone } from "@/lib/hooks/useUserTimezone"
+import { getPresetRangeInTimezone } from "@/lib/reports/helpers"
 
 interface Store {
   id: string
@@ -65,26 +67,24 @@ const PRESETS = [
   { labelKey: "reportPresetMonth" as const, days: 0, type: "month" as const },
 ]
 
-function toLocalYMD(date: Date): string {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, "0")
-  const d = String(date.getDate()).padStart(2, "0")
-  return `${y}-${m}-${d}`
-}
-
-function getPresetDates(days: number, type?: "month") {
-  const today = new Date()
-  const to = toLocalYMD(today)
+function getPresetDates(timezone: string, days: number, type?: "month") {
   if (type === "month") {
-    const from = toLocalYMD(new Date(today.getFullYear(), today.getMonth(), 1))
-    return { from, to }
+    const range = getPresetRangeInTimezone("mtd", timezone)
+    return { from: range.startDate, to: range.endDate }
   }
-  const from = toLocalYMD(new Date(today.getFullYear(), today.getMonth(), today.getDate() - days))
-  return { from, to }
+
+  if (days === 7) {
+    const range = getPresetRangeInTimezone("last7", timezone)
+    return { from: range.startDate, to: range.endDate }
+  }
+
+  const range = getPresetRangeInTimezone("last30", timezone)
+  return { from: range.startDate, to: range.endDate }
 }
 
 export default function AdsReport({ stores }: Props) {
   const t = useTranslations("ads")
+  const { timezone } = useUserTimezone()
   const [selectedStore, setSelectedStore] = useState("")
   const [groupBy, setGroupBy] = useState<"day" | "account" | "platform">("day")
   const [dateFrom, setDateFrom] = useState("")
@@ -100,10 +100,10 @@ export default function AdsReport({ stores }: Props) {
 
   // Default: last 30 days
   useEffect(() => {
-    const { from, to } = getPresetDates(30)
+    const { from, to } = getPresetDates(timezone, 30)
     setDateFrom(from)
     setDateTo(to)
-  }, [])
+  }, [timezone])
 
   const fetchReport = useCallback(async () => {
     if (!dateFrom || !dateTo) return
@@ -134,7 +134,7 @@ export default function AdsReport({ stores }: Props) {
   }, [fetchReport])
 
   const applyPreset = (days: number, type?: "month") => {
-    const { from, to } = getPresetDates(days, type)
+    const { from, to } = getPresetDates(timezone, days, type)
     setDateFrom(from)
     setDateTo(to)
   }
