@@ -147,6 +147,17 @@ interface NormalizedRow {
   cpc?: number
 }
 
+interface AdsSummary {
+  totalSpend: number
+  totalPurchases: number
+  totalPurchaseValue: number
+  roas: number
+  avgCtr?: number
+  avgCpm?: number
+  avgCpc?: number
+  avgCpp?: number
+}
+
 export interface AdsReportRow {
   groupKey: string         // date | accountName | platform (dùng cho grouping)
   date?: string
@@ -390,7 +401,7 @@ function mergeInto(target: AdsReportRow, r: NormalizedRow) {
     : undefined
 }
 
-function calcSummary(rows: NormalizedRow[]) {
+function calcSummary(rows: NormalizedRow[]): AdsSummary {
   let totalSpend = 0
   let totalPurchases = 0
   let totalPurchaseValue = 0
@@ -415,9 +426,16 @@ function calcSummary(rows: NormalizedRow[]) {
     avgCtr: ctrCount > 0 ? ctrSum / ctrCount : undefined,
     avgCpm: cpmCount > 0 ? cpmSum / cpmCount : undefined,
     avgCpc: cpcCount > 0 ? cpcSum / cpcCount : undefined,
+    avgCpp: totalPurchases > 0 ? totalSpend / totalPurchases : undefined,
   }
 }
 
-function emptySummary() {
-  return { totalSpend: 0, totalPurchases: 0, totalPurchaseValue: 0, roas: 0 }
+function emptySummary(): AdsSummary {
+  return {
+    totalSpend: 0,
+    totalPurchases: 0,
+    totalPurchaseValue: 0,
+    roas: 0,
+    avgCpp: undefined,
+  }
 }

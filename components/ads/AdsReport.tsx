@@ -2,7 +2,10 @@
 
 import React, { useState, useEffect, useCallback } from "react"
 import { useTranslations } from "next-intl"
-import AdsSpendChart from "./AdsSpendChart"
+import AdsPerformanceChart from "./AdsPerformanceChart"
+import AdsCppTrendChart from "./AdsCppTrendChart"
+import TopCampaignsTable from "./TopCampaignsTable"
+import AdsAlertsPanel from "./AdsAlertsPanel"
 import StoreSelect from "@/components/ui/store-select"
 import { useUserTimezone } from "@/lib/hooks/useUserTimezone"
 import { getPresetRangeInTimezone } from "@/lib/reports/helpers"
@@ -55,6 +58,17 @@ interface Summary {
   avgCtr?: number
   avgCpm?: number
   avgCpc?: number
+  avgCpp?: number
+}
+
+interface CompareSummary {
+  totalSpend: number
+  totalPurchaseValue: number
+  roas: number
+  avgCtr?: number
+  avgCpm?: number
+  avgCpc?: number
+  avgCpp?: number
 }
 
 interface Props {
@@ -92,6 +106,7 @@ export default function AdsReport({ stores }: Props) {
 
   const [rows, setRows] = useState<AdsReportRow[]>([])
   const [summary, setSummary] = useState<Summary | null>(null)
+  const [compareSummary, setCompareSummary] = useState<CompareSummary | null>(null)
   const [accountNames, setAccountNames] = useState<string[]>([])
   const [loading, setLoading] = useState(false)
   const [fetched, setFetched] = useState(false)
@@ -113,10 +128,30 @@ export default function AdsReport({ stores }: Props) {
       if (selectedStore) params.set("storeId", selectedStore)
       const res = await fetch(`/api/ads/report?${params}`)
       const data = await res.json()
+
+      const fromDate = new Date(`${dateFrom}T00:00:00`)
+      const toDate = new Date(`${dateTo}T00:00:00`)
+      const dayDiff = Math.max(1, Math.round((toDate.getTime() - fromDate.getTime()) / 86400000) + 1)
+      const prevTo = new Date(fromDate)
+      prevTo.setDate(prevTo.getDate() - 1)
+      const prevFrom = new Date(fromDate)
+      prevFrom.setDate(prevFrom.getDate() - dayDiff)
+
+      const compareParams = new URLSearchParams({
+        from: prevFrom.toISOString().slice(0, 10),
+        to: prevTo.toISOString().slice(0, 10),
+        groupBy,
+      })
+      if (selectedStore) compareParams.set("storeId", selectedStore)
+
+      const compareRes = await fetch(`/api/ads/report?${compareParams}`)
+      const compareData = await compareRes.json()
+
       if (res.ok) {
         setRows(data.rows)
         setSummary(data.summary)
         setAccountNames(data.accountNames)
+        setCompareSummary(compareRes.ok ? compareData.summary : null)
         setFetched(true)
       }
     } catch (err) {
@@ -152,31 +187,60 @@ export default function AdsReport({ stores }: Props) {
   const KPICard = ({
     label,
     value,
-    sub,
-    color = "gray",
+    delta,
   }: {
     label: string
     value: string
-    sub?: string
-    color?: "gray" | "green" | "indigo" | "amber"
+    delta?: { label: string; tone: "up" | "down" | "neutral" }
   }) => {
-    const colors = {
-      gray: "bg-gray-50 border-gray-100",
-      green: "bg-green-50 border-green-100",
-      indigo: "bg-indigo-50 border-indigo-100",
-      amber: "bg-amber-50 border-amber-100",
+    const deltaTone = {
+      up: "bg-emerald-100 text-emerald-700",
+      down: "bg-rose-100 text-rose-700",
+      neutral: "bg-slate-100 text-slate-600",
     }
+
     return (
-      <div className={`rounded-xl border p-4 ${colors[color]}`}>
-        <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">{label}</p>
-        <p className="mt-1 text-2xl font-bold text-gray-900">{value}</p>
-        {sub && <p className="mt-0.5 text-xs text-gray-400">{sub}</p>}
+      <div className="rounded-2xl border border-gray-100 bg-white p-4 shadow-sm shadow-gray-200/70">
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-gray-500">{label}</p>
+          {delta && (
+            <span className={`inline-flex rounded-full px-2 py-1 text-[10px] font-semibold whitespace-nowrap ${deltaTone[delta.tone]}`}>
+              {delta.label}
+            </span>
+          )}
+        </div>
+        <p className="mt-3 text-2xl font-bold text-gray-900">{value}</p>
       </div>
     )
   }
 
   const fmt = (n?: number, decimals = 2) =>
     n !== undefined ? n.toFixed(decimals) : "—"
+
+  const formatDelta = (current?: number, previous?: number, suffix = "%") => {
+    if (current === undefined || previous === undefined) return null
+    if (previous === 0) {
+      if (current === 0) return null
+      return { label: t("reportDeltaNew"), tone: "neutral" as const }
+    }
+
+    const delta = ((current - previous) / previous) * 100
+    const rounded = Math.abs(delta) >= 100 ? Math.round(delta) : Math.round(delta * 10) / 10
+    const sign = rounded > 0 ? "+" : ""
+
+    return {
+      label: `${sign}${rounded}${suffix} ${t("reportVsPrevious")}`,
+      tone: delta > 0 ? "up" as const : delta < 0 ? "down" as const : "neutral" as const,
+    }
+  }
+
+  const spendDelta = formatDelta(summary?.totalSpend, compareSummary?.totalSpend)
+  const revenueDelta = formatDelta(summary?.totalPurchaseValue, compareSummary?.totalPurchaseValue)
+  const roasDelta = formatDelta(summary?.roas, compareSummary?.roas)
+  const ctrDelta = formatDelta(summary?.avgCtr, compareSummary?.avgCtr)
+  const cpcDelta = formatDelta(summary?.avgCpc, compareSummary?.avgCpc)
+  const cpmDelta = formatDelta(summary?.avgCpm, compareSummary?.avgCpm)
+  const cppDelta = formatDelta(summary?.avgCpp, compareSummary?.avgCpp)
 
   const StorePlatformIcon = ({ platform }: { platform: string }) => {
     const p = platform?.toLowerCase()
@@ -325,40 +389,108 @@ export default function AdsReport({ stores }: Props) {
         <>
           {/* KPI Cards */}
           {summary && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <KPICard
-                label={t("reportKpiSpend")}
-                value={`$${summary.totalSpend.toFixed(2)}`}
-                color="indigo"
-              />
-              <KPICard
-                label={t("reportKpiPurchases")}
-                value={summary.totalPurchases.toString()}
-                color="green"
-              />
-              <KPICard
-                label={t("reportKpiRevenue")}
-                value={`$${summary.totalPurchaseValue.toFixed(2)}`}
-                color="green"
-              />
-              <KPICard
-                label={t("reportKpiRoas")}
-                value={summary.roas > 0 ? `${summary.roas.toFixed(2)}x` : "—"}
-                sub={summary.avgCtr !== undefined ? `CTR: ${summary.avgCtr.toFixed(2)}%` : undefined}
-                color={summary.roas >= 2 ? "green" : summary.roas > 0 ? "amber" : "gray"}
-              />
+            <div className="space-y-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <KPICard
+                  label={t("reportKpiSpend")}
+                  value={`$${summary.totalSpend.toFixed(2)}`}
+                  delta={spendDelta ?? undefined}
+                />
+                <KPICard
+                  label={t("reportKpiPurchases")}
+                  value={summary.totalPurchases.toString()}
+                />
+                <KPICard
+                  label={t("reportKpiRevenue")}
+                  value={`$${summary.totalPurchaseValue.toFixed(2)}`}
+                  delta={revenueDelta ?? undefined}
+                />
+                <KPICard
+                  label={t("reportKpiRoas")}
+                  value={summary.roas > 0 ? `${summary.roas.toFixed(2)}x` : "—"}
+                  delta={roasDelta ?? undefined}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <KPICard
+                  label={t("reportKpiCtr")}
+                  value={summary.avgCtr !== undefined ? `${summary.avgCtr.toFixed(2)}%` : "—"}
+                  delta={ctrDelta ?? undefined}
+                />
+                <KPICard
+                  label={t("reportKpiCpc")}
+                  value={summary.avgCpc !== undefined ? `$${summary.avgCpc.toFixed(3)}` : "—"}
+                  delta={cpcDelta ?? undefined}
+                />
+                <KPICard
+                  label={t("reportKpiCpm")}
+                  value={summary.avgCpm !== undefined ? `$${summary.avgCpm.toFixed(2)}` : "—"}
+                  delta={cpmDelta ?? undefined}
+                />
+                <KPICard
+                  label={t("reportKpiCpp")}
+                  value={summary.avgCpp !== undefined ? `$${summary.avgCpp.toFixed(2)}` : "—"}
+                  delta={cppDelta ?? undefined}
+                />
+              </div>
             </div>
           )}
 
-          {/* Chart */}
+          {/* Spend vs Revenue vs ROAS chart */}
           {groupBy === "day" && rows.length > 0 && (
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
-              <h3 className="text-sm font-semibold text-gray-900 mb-4">{t("reportChartTitle")}</h3>
-              <AdsSpendChart rows={rows} accountNames={accountNames} />
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">{t("reportPerfChartTitle")}</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">{t("reportPerfChartDesc")}</p>
+                </div>
+              </div>
+              <AdsPerformanceChart rows={rows} />
             </div>
           )}
 
-          {/* Table */}
+          {groupBy === "day" && rows.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-900">{t("reportCppChartTitle")}</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">{t("reportCppChartDesc")}</p>
+                </div>
+              </div>
+              <AdsCppTrendChart rows={rows} />
+            </div>
+          )}
+
+          {/* Top / Bottom Accounts — only when groupBy=account */}
+          {groupBy === "account" && rows.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold text-gray-900">{t("reportTopAccountsTitle")}</h3>
+                <p className="text-xs text-gray-400 mt-0.5">{t("reportTopAccountsDesc")}</p>
+              </div>
+              <TopCampaignsTable rows={rows} />
+            </div>
+          )}
+
+          {/* Ads Alerts — chỉ khi groupBy=day hoặc account (có accountName data) */}
+          {groupBy !== "platform" && rows.length > 0 && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
+              <div className="mb-4">
+                <h3 className="text-sm font-semibold text-gray-900">{t("reportAlertsTitle")}</h3>
+                <p className="text-xs text-gray-400 mt-0.5">{t("reportAlertsDesc")}</p>
+              </div>
+              <AdsAlertsPanel
+                rows={rows}
+                roasThreshold={1.5}
+                spendThreshold={50}
+                totalSpend={summary?.totalSpend}
+              />
+            </div>
+          )}
+
+          {/* Table — hidden when groupBy=account (TopCampaignsTable covers it) */}
+          {groupBy !== "account" && (
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
               <h3 className="text-sm font-semibold text-gray-900">
@@ -383,16 +515,6 @@ export default function AdsReport({ stores }: Props) {
                       {groupBy === "day" && (
                         <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
                           {t("reportColDate")}
-                        </th>
-                      )}
-                      {groupBy === "account" && (
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                          {t("reportColAccount")}
-                        </th>
-                      )}
-                      {groupBy === "account" && (
-                        <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                          {t("reportColStore")}
                         </th>
                       )}
                       {groupBy === "platform" && (
@@ -467,21 +589,6 @@ export default function AdsReport({ stores }: Props) {
                                 {row.date}
                               </td>
                             )}
-                            {groupBy === "account" && (
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                <div className="flex items-center gap-2">
-                                  <div className="w-5 h-5 rounded bg-blue-600 flex items-center justify-center flex-shrink-0">
-                                    <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="currentColor">
-                                      <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                                    </svg>
-                                  </div>
-                                  <span className="text-sm font-medium text-gray-900">{row.accountName || "—"}</span>
-                                </div>
-                              </td>
-                            )}
-                            {groupBy === "account" && (
-                              <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">{row.storeName || "—"}</td>
-                            )}
                             {groupBy === "platform" && (
                               <td className="px-4 py-3 text-sm font-medium text-gray-900 capitalize whitespace-nowrap">{row.platform}</td>
                             )}
@@ -545,6 +652,7 @@ export default function AdsReport({ stores }: Props) {
               </div>
             )}
           </div>
+          )}
         </>
       )}
     </div>

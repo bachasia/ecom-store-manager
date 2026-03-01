@@ -1,6 +1,6 @@
 "use client"
 
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts"
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ReferenceLine, Cell } from "recharts"
 import { useTranslations } from "next-intl"
 
 interface StoreComparisonChartProps {
@@ -89,6 +89,29 @@ export default function StoreComparisonChart({ data, loading = false }: StoreCom
     }).format(value)
   }
 
+  const valueExtremes = data.reduce(
+    (acc, item) => {
+      acc.min = Math.min(acc.min, item.revenue, item.netProfit)
+      acc.max = Math.max(acc.max, item.revenue, item.netProfit)
+      return acc
+    },
+    { min: Infinity, max: 0 }
+  )
+
+  const xDomain: [number | "auto", number | "auto"] = valueExtremes.min >= 0
+    ? [0, "auto"]
+    : ["auto", "auto"]
+
+  const legendFormatter = (value: string) => {
+    if (value === t("netProfit")) {
+      return <span className="text-green-600">{value}</span>
+    }
+    if (value === t("revenue")) {
+      return <span className="text-blue-600">{value}</span>
+    }
+    return <span className="text-gray-700">{value}</span>
+  }
+
   if (loading) {
     return (
       <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
@@ -115,11 +138,12 @@ export default function StoreComparisonChart({ data, loading = false }: StoreCom
           <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
           <XAxis
             type="number"
-            domain={["dataMin", "dataMax"]}
+            domain={xDomain}
             tickFormatter={formatCurrency}
             stroke="#9ca3af"
             style={{ fontSize: "12px" }}
           />
+          {valueExtremes.min < 0 && <ReferenceLine x={0} stroke="#94a3b8" strokeDasharray="4 4" />}
           <YAxis
             type="category"
             dataKey="storeId"
@@ -127,7 +151,7 @@ export default function StoreComparisonChart({ data, loading = false }: StoreCom
             stroke="#9ca3af"
             tick={(props: any) => <CustomYAxisTick {...props} storeMap={storeMap} />}
           />
-          <Legend wrapperStyle={{ fontSize: "12px" }} />
+          <Legend wrapperStyle={{ fontSize: "12px" }} formatter={legendFormatter} />
           <Tooltip
             formatter={(value: any, name: any) => [formatCurrency(Number(value)), String(name)]}
             labelFormatter={(storeId: any) => storeMap.get(String(storeId))?.storeName ?? String(storeId)}
@@ -139,8 +163,26 @@ export default function StoreComparisonChart({ data, loading = false }: StoreCom
               boxShadow: "0 4px 6px -1px rgba(0, 0, 0, 0.1)",
             }}
           />
-          <Bar dataKey="revenue" name={t("revenue")} fill="#2563eb" radius={[0, 8, 8, 0]} />
-          <Bar dataKey="netProfit" name={t("netProfit")} fill="#16a34a" radius={[0, 8, 8, 0]} />
+          <Bar
+            dataKey="revenue"
+            name={t("revenue")}
+            fill="#2563eb"
+            radius={[0, 8, 8, 0]}
+            minPointSize={3}
+          />
+          <Bar
+            dataKey="netProfit"
+            name={t("netProfit")}
+            radius={[0, 8, 8, 0]}
+            minPointSize={6}
+          >
+            {data.map((entry) => (
+              <Cell
+                key={`net-profit-${entry.storeId}`}
+                fill={entry.netProfit < 0 ? "#dc2626" : "#16a34a"}
+              />
+            ))}
+          </Bar>
         </BarChart>
       </ResponsiveContainer>
     </div>
