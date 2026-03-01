@@ -4,6 +4,8 @@
  * Allocates advertising costs to orders based on different attribution methods
  */
 
+import { dateOnlyValueToYMD, utcToLocalYMD } from "@/lib/utils/timezone"
+
 interface Order {
   id: string
   storeId: string
@@ -34,7 +36,8 @@ export type AllocationMethod = 'equal' | 'revenue-weighted' | 'none'
  */
 export function allocateAdsCostsEqual(
   orders: Order[],
-  adsCosts: AdsCost[]
+  adsCosts: AdsCost[],
+  timezone: string = "UTC"
 ): Order[] {
   if (orders.length === 0 || adsCosts.length === 0) {
     return orders.map(order => ({ ...order, allocatedAdsCost: 0 }))
@@ -44,7 +47,7 @@ export function allocateAdsCostsEqual(
   const adsCostsByDateStore = new Map<string, number>()
   
   adsCosts.forEach(adsCost => {
-    const dateKey = `${adsCost.storeId}_${adsCost.date.toISOString().split('T')[0]}`
+    const dateKey = `${adsCost.storeId}_${dateOnlyValueToYMD(adsCost.date)}`
     const currentSpend = adsCostsByDateStore.get(dateKey) || 0
     adsCostsByDateStore.set(dateKey, currentSpend + Number(adsCost.spend))
   })
@@ -53,7 +56,7 @@ export function allocateAdsCostsEqual(
   const ordersByDateStore = new Map<string, Order[]>()
   
   orders.forEach(order => {
-    const dateKey = `${order.storeId}_${order.orderDate.toISOString().split('T')[0]}`
+    const dateKey = `${order.storeId}_${utcToLocalYMD(order.orderDate, timezone)}`
     const ordersForDate = ordersByDateStore.get(dateKey) || []
     ordersForDate.push(order)
     ordersByDateStore.set(dateKey, ordersForDate)
@@ -61,7 +64,7 @@ export function allocateAdsCostsEqual(
 
   // Allocate costs equally
   const allocatedOrders = orders.map(order => {
-    const dateKey = `${order.storeId}_${order.orderDate.toISOString().split('T')[0]}`
+    const dateKey = `${order.storeId}_${utcToLocalYMD(order.orderDate, timezone)}`
     const totalSpendForDate = adsCostsByDateStore.get(dateKey) || 0
     const ordersForDate = ordersByDateStore.get(dateKey) || []
     
@@ -90,7 +93,8 @@ export function allocateAdsCostsEqual(
  */
 export function allocateAdsCostsRevenueWeighted(
   orders: Order[],
-  adsCosts: AdsCost[]
+  adsCosts: AdsCost[],
+  timezone: string = "UTC"
 ): Order[] {
   if (orders.length === 0 || adsCosts.length === 0) {
     return orders.map(order => ({ ...order, allocatedAdsCost: 0 }))
@@ -100,7 +104,7 @@ export function allocateAdsCostsRevenueWeighted(
   const adsCostsByDateStore = new Map<string, number>()
   
   adsCosts.forEach(adsCost => {
-    const dateKey = `${adsCost.storeId}_${adsCost.date.toISOString().split('T')[0]}`
+    const dateKey = `${adsCost.storeId}_${dateOnlyValueToYMD(adsCost.date)}`
     const currentSpend = adsCostsByDateStore.get(dateKey) || 0
     adsCostsByDateStore.set(dateKey, currentSpend + Number(adsCost.spend))
   })
@@ -110,7 +114,7 @@ export function allocateAdsCostsRevenueWeighted(
   const totalRevenueByDateStore = new Map<string, number>()
   
   orders.forEach(order => {
-    const dateKey = `${order.storeId}_${order.orderDate.toISOString().split('T')[0]}`
+    const dateKey = `${order.storeId}_${utcToLocalYMD(order.orderDate, timezone)}`
     
     // Add to orders list
     const ordersForDate = ordersByDateStore.get(dateKey) || []
@@ -124,7 +128,7 @@ export function allocateAdsCostsRevenueWeighted(
 
   // Allocate costs based on revenue weight
   const allocatedOrders = orders.map(order => {
-    const dateKey = `${order.storeId}_${order.orderDate.toISOString().split('T')[0]}`
+    const dateKey = `${order.storeId}_${utcToLocalYMD(order.orderDate, timezone)}`
     const totalSpendForDate = adsCostsByDateStore.get(dateKey) || 0
     const totalRevenueForDate = totalRevenueByDateStore.get(dateKey) || 0
     
@@ -156,14 +160,15 @@ export function allocateAdsCostsRevenueWeighted(
 export function allocateAdsCosts(
   orders: Order[],
   adsCosts: AdsCost[],
-  method: AllocationMethod = 'revenue-weighted'
+  method: AllocationMethod = 'revenue-weighted',
+  timezone: string = "UTC"
 ): Order[] {
   switch (method) {
     case 'equal':
-      return allocateAdsCostsEqual(orders, adsCosts)
+      return allocateAdsCostsEqual(orders, adsCosts, timezone)
     
     case 'revenue-weighted':
-      return allocateAdsCostsRevenueWeighted(orders, adsCosts)
+      return allocateAdsCostsRevenueWeighted(orders, adsCosts, timezone)
     
     case 'none':
       return orders.map(order => ({ ...order, allocatedAdsCost: 0 }))
@@ -194,12 +199,13 @@ export function getTotalAllocatedAdsCost(orders: Order[]): number {
  * @returns Map of date to total allocated cost
  */
 export function getAdsCostAllocationByDate(
-  orders: Order[]
+  orders: Order[],
+  timezone: string = "UTC"
 ): Map<string, { orderCount: number; totalRevenue: number; allocatedCost: number }> {
   const summary = new Map<string, { orderCount: number; totalRevenue: number; allocatedCost: number }>()
   
   orders.forEach(order => {
-    const dateKey = order.orderDate.toISOString().split('T')[0]
+    const dateKey = utcToLocalYMD(order.orderDate, timezone)
     const current = summary.get(dateKey) || { orderCount: 0, totalRevenue: 0, allocatedCost: 0 }
     
     summary.set(dateKey, {

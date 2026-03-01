@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { calculateAggregatePL, calculatePLByDate, calculatePLByMonth } from "@/lib/calculations/pnl"
 import { getStoreIdsWithPermission, requireStorePermission } from "@/lib/permissions"
-import { getUserTimezone, buildDateRangeFilter, buildDateOnlyRangeFilter } from "@/lib/utils/timezone"
+import { getUserTimezone, buildDateRangeFilter, buildDateOnlyRangeFilter, utcToLocalYMD } from "@/lib/utils/timezone"
 
 // GET /api/pnl - Get P&L metrics with filters
 export async function GET(req: Request) {
@@ -115,13 +115,15 @@ export async function GET(req: Request) {
     let result: any
 
     if (groupBy === "day") {
-      const plByDate = calculatePLByDate(ordersForCalc)
+      const plByDate = calculatePLByDate(ordersForCalc, timezone)
       const itemsByDate = new Map<string, number>()
+      const ordersCountByDate = new Map<string, number>()
 
       for (const order of orders) {
-        const date = order.orderDate.toISOString().split('T')[0]
+        const dateKey = utcToLocalYMD(order.orderDate, timezone)
         const qty = itemsByOrderId.get(order.id) || 0
-        itemsByDate.set(date, (itemsByDate.get(date) || 0) + qty)
+        itemsByDate.set(dateKey, (itemsByDate.get(dateKey) || 0) + qty)
+        ordersCountByDate.set(dateKey, (ordersCountByDate.get(dateKey) || 0) + 1)
       }
 
       result = {
@@ -130,14 +132,14 @@ export async function GET(req: Request) {
           date,
           ...metrics,
           itemsSold: itemsByDate.get(date) || 0,
-          ordersCount: orders.filter((o) => o.orderDate.toISOString().split('T')[0] === date).length,
-          aov: orders.filter((o) => o.orderDate.toISOString().split('T')[0] === date).length > 0
-            ? metrics.revenue / orders.filter((o) => o.orderDate.toISOString().split('T')[0] === date).length
+          ordersCount: ordersCountByDate.get(date) || 0,
+          aov: (ordersCountByDate.get(date) || 0) > 0
+            ? metrics.revenue / (ordersCountByDate.get(date) || 0)
             : 0,
         }))
       }
     } else if (groupBy === "month") {
-      const plByMonth = calculatePLByMonth(ordersForCalc)
+      const plByMonth = calculatePLByMonth(ordersForCalc, timezone)
       result = {
         groupBy: "month",
         data: Array.from(plByMonth.entries()).map(([month, metrics]) => ({

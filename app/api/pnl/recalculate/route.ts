@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { calculateOrderPL } from "@/lib/calculations/pnl"
 import { allocateAdsCosts } from "@/lib/calculations/ads-allocation"
 import { requireStorePermission, getStoreIdsWithPermission } from "@/lib/permissions"
+import { getUserTimezone } from "@/lib/utils/timezone"
 
 // POST /api/pnl/recalculate - Recalculate P&L for all orders
 export async function POST(req: Request) {
@@ -17,6 +18,7 @@ export async function POST(req: Request) {
 
     const body = await req.json()
     const { storeId, allocationMethod = "revenue-weighted" } = body
+    const timezone = await getUserTimezone(session.user.id)
 
     // Build query filters
     const where: any = {}
@@ -92,7 +94,8 @@ export async function POST(req: Request) {
         ...a,
         spend: Number(a.spend),
       })),
-      allocationMethod as any
+      allocationMethod as any,
+      timezone
     )
 
     // Build a lookup map for O(1) access instead of O(n) find per order

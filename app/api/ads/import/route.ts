@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma"
 import { calculateOrderPL } from "@/lib/calculations/pnl"
 import { allocateAdsCosts } from "@/lib/calculations/ads-allocation"
 import { requireStorePermission } from "@/lib/permissions"
+import { getUserTimezone } from "@/lib/utils/timezone"
+import { parseDateOnlyToUTC } from "@/lib/utils/date-only"
 
 // POST /api/ads/import - Bulk import ads costs
 export async function POST(req: Request) {
@@ -32,14 +34,17 @@ export async function POST(req: Request) {
 
     let imported = 0
     let errors = 0
+    const timezone = await getUserTimezone(session.user.id)
 
     for (const row of data) {
       try {
+        const adsDate = parseDateOnlyToUTC(row.date)
+
         await prisma.adsCost.upsert({
           where: {
             storeId_date_platform_accountName_campaignName_adsetName: {
               storeId,
-              date: new Date(row.date),
+              date: adsDate,
               platform,
               accountName: "",
               campaignName: row.campaignName || "",
@@ -53,7 +58,7 @@ export async function POST(req: Request) {
           },
           create: {
             storeId,
-            date: new Date(row.date),
+            date: adsDate,
             platform,
             campaignName: row.campaignName || "",
             adsetName: row.adsetName || "",
@@ -112,7 +117,8 @@ export async function POST(req: Request) {
             allocatedAdsCost: Number(o.allocatedAdsCost),
           })),
           allAdsCosts.map(a => ({ ...a, spend: Number(a.spend) })),
-          "revenue-weighted"
+          "revenue-weighted",
+          timezone
         )
 
         // Build all updates in memory, then flush in a single transaction

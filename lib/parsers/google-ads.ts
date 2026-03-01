@@ -1,4 +1,5 @@
 import Papa from 'papaparse'
+import { normalizeDateOnlyString } from '@/lib/utils/date-only'
 
 export interface GoogleAdsRow {
   date: string
@@ -48,18 +49,9 @@ export function parseGoogleAdsCSV(csvContent: string): GoogleAdsRow[] {
 }
 
 function formatDate(dateStr: string): string {
-  // Google Ads usually uses: "2024-01-15" or "Jan 15, 2024"
-  
-  // If already in YYYY-MM-DD format
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
-    return dateStr
+  try {
+    return normalizeDateOnlyString(dateStr)
+  } catch {
+    return dateStr.trim()
   }
-
-  // Try to parse and convert
-  const date = new Date(dateStr)
-  if (!isNaN(date.getTime())) {
-    return date.toISOString().split('T')[0]
-  }
-
-  return dateStr
 }

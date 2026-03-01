@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { dateOnlyToYMD } from "@/lib/utils/date-only"
 
 /**
  * Convert a UTC Date to the calendar date string "YYYY-MM-DD" in the given timezone.
@@ -17,6 +18,14 @@ export function utcToLocalYMD(utcDate: Date, timezone: string): string {
   const day = parts.find((p) => p.type === "day")?.value ?? "01"
 
   return `${year}-${month}-${day}`
+}
+
+/**
+ * Convert a Date-only DB value to a stable YYYY-MM-DD string.
+ * AdsCost.date is stored as @db.Date, so it should always be treated as a plain calendar date.
+ */
+export function dateOnlyValueToYMD(date: Date): string {
+  return dateOnlyToYMD(date)
 }
 
 /**

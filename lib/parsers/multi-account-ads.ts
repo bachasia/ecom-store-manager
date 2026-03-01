@@ -13,6 +13,7 @@
  */
 
 import Papa from "papaparse"
+import { normalizeDateOnlyString } from "@/lib/utils/date-only"
 
 export interface MultiAccountAdsRow {
   accountName: string   // Tên tài khoản ads
@@ -53,11 +54,11 @@ function parseInteger(val: string | undefined | null): number | undefined {
 
 function formatDate(dateStr: string): string {
   if (!dateStr) return ""
-  // Đã đúng YYYY-MM-DD
-  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr.trim())) return dateStr.trim()
-  const d = new Date(dateStr)
-  if (!isNaN(d.getTime())) return d.toISOString().split("T")[0]
-  return dateStr.trim()
+  try {
+    return normalizeDateOnlyString(dateStr)
+  } catch {
+    return dateStr.trim()
+  }
 }
 
 export function parseMultiAccountFacebookAdsCSV(csvContent: string): ParseMultiAccountResult {

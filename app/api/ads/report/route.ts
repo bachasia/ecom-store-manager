@@ -3,7 +3,8 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth/options"
 import { prisma } from "@/lib/prisma"
 import { getStoreIdsWithPermission } from "@/lib/permissions"
-import { getUserTimezone, buildDateOnlyRangeFilter } from "@/lib/utils/timezone"
+import { buildDateOnlyRangeFilter } from "@/lib/utils/timezone"
+import { dateOnlyToYMD } from "@/lib/utils/date-only"
 
 /**
  * GET /api/ads/report
@@ -83,7 +84,7 @@ export async function GET(req: Request) {
         storeId: r.storeId,
         storeName: r.store.name,
         storePlatform: r.store.platform,
-        date: r.date.toISOString().split("T")[0],
+        date: dateOnlyToYMD(r.date),
         platform: r.platform,
         accountName: r.accountName,
         currency: r.currency,

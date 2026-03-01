@@ -4,6 +4,8 @@
  * Calculates profit metrics for orders and aggregated data
  */
 
+import { utcToLocalYMD } from "@/lib/utils/timezone"
+
 interface Order {
   id: string
   total: number
@@ -122,13 +124,14 @@ export function calculateAggregatePL(orders: Order[]): PLMetrics {
  * @returns Map of date to P&L metrics
  */
 export function calculatePLByDate(
-  orders: (Order & { orderDate: Date })[]
+  orders: (Order & { orderDate: Date })[],
+  timezone: string = "UTC"
 ): Map<string, PLMetrics> {
   const ordersByDate = new Map<string, (Order & { orderDate: Date })[]>()
 
   // Group orders by date
   orders.forEach(order => {
-    const dateKey = order.orderDate.toISOString().split('T')[0]
+    const dateKey = utcToLocalYMD(order.orderDate, timezone)
     const ordersForDate = ordersByDate.get(dateKey) || []
     ordersForDate.push(order)
     ordersByDate.set(dateKey, ordersForDate)
@@ -152,13 +155,14 @@ export function calculatePLByDate(
  * @returns Map of month (YYYY-MM) to P&L metrics
  */
 export function calculatePLByMonth(
-  orders: (Order & { orderDate: Date })[]
+  orders: (Order & { orderDate: Date })[],
+  timezone: string = "UTC"
 ): Map<string, PLMetrics> {
   const ordersByMonth = new Map<string, (Order & { orderDate: Date })[]>()
 
   // Group orders by month
   orders.forEach(order => {
-    const monthKey = order.orderDate.toISOString().substring(0, 7) // YYYY-MM
+    const monthKey = utcToLocalYMD(order.orderDate, timezone).substring(0, 7)
     const ordersForMonth = ordersByMonth.get(monthKey) || []
     ordersForMonth.push(order)
     ordersByMonth.set(monthKey, ordersForMonth)

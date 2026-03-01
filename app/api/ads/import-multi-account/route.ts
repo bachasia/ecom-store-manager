@@ -8,6 +8,8 @@ import { convertToUSD } from "@/lib/utils/currency"
 import { calculateOrderPL } from "@/lib/calculations/pnl"
 import { allocateAdsCosts } from "@/lib/calculations/ads-allocation"
 import type { MultiAccountAdsRow } from "@/lib/parsers/multi-account-ads"
+import { getUserTimezone } from "@/lib/utils/timezone"
+import { parseDateOnlyToUTC } from "@/lib/utils/date-only"
 
 const rowSchema = z.object({
   accountName: z.string().min(1),
@@ -50,6 +52,7 @@ export async function POST(req: Request) {
 
     const body = await req.json()
     const { rows, storeIdOverride } = bodySchema.parse(body)
+    const timezone = await getUserTimezone(session.user.id)
 
     if (rows.length === 0) {
       return NextResponse.json({ error: "No data rows provided" }, { status: 400 })
@@ -131,11 +134,13 @@ export async function POST(req: Request) {
 
         // Upsert AdsCost — update luôn overwrite toàn bộ fields
         // (dùng null thay vì bỏ qua để xóa giá trị cũ khi file mới không có cột đó)
+        const adsDate = parseDateOnlyToUTC(row.date)
+
         await prisma.adsCost.upsert({
           where: {
             storeId_date_platform_accountName_campaignName_adsetName: {
               storeId: targetStoreId,
-              date: new Date(row.date),
+              date: adsDate,
               platform: "facebook",
               accountName: row.accountName,
               campaignName: "",
@@ -156,7 +161,7 @@ export async function POST(req: Request) {
           },
           create: {
             storeId: targetStoreId,
-            date: new Date(row.date),
+            date: adsDate,
             platform: "facebook",
             accountName: row.accountName,
             campaignName: "",
@@ -225,7 +230,8 @@ export async function POST(req: Request) {
               allocatedAdsCost: Number(o.allocatedAdsCost),
             })),
             allAdsCosts.map((a) => ({ ...a, spend: Number(a.spend) })),
-            "revenue-weighted"
+            "revenue-weighted",
+            timezone
           )
 
           const updates = ordersWithAllocatedAds.flatMap((allocatedOrder) => {
