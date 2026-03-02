@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useUserTimezone } from "@/lib/hooks/useUserTimezone"
+import PlatformIcon from "@/components/ui/platform-icon"
 import {
   LineChart,
   Line,
@@ -70,6 +71,18 @@ const metricLabels: Record<MetricKey, string> = {
   revenue: "Revenue",
   netProfit: "Net Profit",
   roas: "ROAS",
+}
+
+interface TooltipEntry {
+  color?: string
+  name?: string
+  value?: number | string | null
+}
+
+interface CustomTooltipProps {
+  active?: boolean
+  label?: string
+  payload?: TooltipEntry[]
 }
 
 function Skeleton() {
@@ -143,6 +156,55 @@ export default function StoreTrendChart({ trends, stores, loading = false }: Sto
       ? (v: any, name: string | undefined) => [Number(v).toFixed(2), name ?? ""]
       : (v: any, name: string | undefined) => [fmtFull.format(Number(v)), name ?? ""]
 
+  const renderLegendLabel = (value: string) => {
+    const store = stores.find((s) => s.name === value || s.id === value)
+    if (!store) return <span className="text-gray-700">{value}</span>
+
+    return (
+      <span className="inline-flex items-center gap-1.5 text-gray-700">
+        <PlatformIcon platform={store.platform} size={14} />
+        <span>{store.name}</span>
+      </span>
+    )
+  }
+
+  const CustomTooltip = ({ active, label, payload }: CustomTooltipProps) => {
+    if (!active || !payload?.length || !label) return null
+
+    return (
+      <div
+        className="rounded-xl border border-gray-200 bg-white px-3 py-2.5 shadow-lg"
+        style={{ fontSize: "12px" }}
+      >
+        <div className="mb-2 text-xs font-semibold text-gray-700">
+          {formatTick(label, granularity, timezone)}
+        </div>
+        <div className="space-y-1.5">
+          {payload.map((entry, index) => {
+            const store = stores.find((s) => s.name === entry.name || s.id === entry.name)
+            const formattedValue = metric === "roas"
+              ? Number(entry.value ?? 0).toFixed(2)
+              : fmtFull.format(Number(entry.value ?? 0))
+
+            return (
+              <div key={`${entry.name}-${index}`} className="flex items-center justify-between gap-4">
+                <div className="flex items-center gap-2 text-gray-700">
+                  <span
+                    className="h-2.5 w-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: entry.color ?? "#9ca3af" }}
+                  />
+                  {store && <PlatformIcon platform={store.platform} size={14} />}
+                  <span>{store?.name ?? entry.name}</span>
+                </div>
+                <span className="font-medium text-gray-900">{formattedValue}</span>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="rounded-2xl border border-gray-100 bg-white shadow-sm p-6 space-y-4">
       {/* Controls */}
@@ -203,30 +265,18 @@ export default function StoreTrendChart({ trends, stores, loading = false }: Sto
             tick={{ fill: "#6b7280" }}
           />
           <Tooltip
-            formatter={tooltipFormatter}
-            labelFormatter={(label) => formatTick(label, granularity, timezone)}
-            contentStyle={{
-              backgroundColor: "white",
-              border: "1px solid #e5e7eb",
-              borderRadius: "12px",
-              padding: "10px 14px",
-              boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)",
-              fontSize: "12px",
-            }}
+            content={<CustomTooltip />}
           />
           <Legend
             wrapperStyle={{ fontSize: "12px", paddingTop: "12px" }}
-            formatter={(value) => {
-              const store = stores.find((s) => s.id === value)
-              return store?.name ?? value
-            }}
+            formatter={renderLegendLabel}
           />
           {stores.map((store, idx) => (
             <Line
               key={store.id}
               type="monotone"
               dataKey={store.id}
-              name={store.id}
+              name={store.name}
               stroke={COLORS[idx % COLORS.length]}
               strokeWidth={2}
               dot={false}
