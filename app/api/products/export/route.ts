@@ -91,7 +91,7 @@ export async function GET(req: Request) {
 
   const stream = new ReadableStream({
     async start(controller) {
-      controller.enqueue(encoder.encode("sku,name,variantName,price,baseCost\n"))
+      controller.enqueue(encoder.encode("externalId,sku,name,variantName,price,baseCost\n"))
 
       const BATCH = 500
       let skip = 0
@@ -101,6 +101,7 @@ export async function GET(req: Request) {
         const rows = await prisma.product.findMany({
           where,
           select: {
+            externalId: true,
             sku: true,
             name: true,
             variantName: true,
@@ -115,12 +116,13 @@ export async function GET(req: Request) {
         if (rows.length === 0) break
 
         for (const r of rows) {
+          const externalId  = escapeCsv(r.externalId)
           const sku         = escapeCsv(r.sku)
           const name        = escapeCsv(r.name)
           const variantName = escapeCsv(r.variantName ?? "")
           const price       = Number(r.price).toFixed(2)
           const baseCost    = Number(r.baseCost).toFixed(2)
-          controller.enqueue(encoder.encode(`${sku},${name},${variantName},${price},${baseCost}\n`))
+          controller.enqueue(encoder.encode(`${externalId},${sku},${name},${variantName},${price},${baseCost}\n`))
         }
 
         fetched += rows.length

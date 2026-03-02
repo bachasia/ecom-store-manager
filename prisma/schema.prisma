@@ -142,15 +142,31 @@ model Product {
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
   
-  store           Store      @relation(fields: [storeId], references: [id], onDelete: Cascade)
+  store           Store               @relation(fields: [storeId], references: [id], onDelete: Cascade)
   orderItems      OrderItem[]
-  
+  costHistory     ProductCostHistory[]
+
   @@unique([storeId, externalId, sku])
   @@index([storeId])
   @@index([sku])
   @@index([storeId, parentExternalId])
   @@index([storeId, name])
   @@index([storeId, sku])
+}
+
+// COGS cost history — tracks price changes over time per product/variant
+model ProductCostHistory {
+  id            String   @id @default(cuid())
+  productId     String
+  cost          Decimal  @db.Decimal(10, 2)   // COGS effective from this date
+  effectiveDate DateTime                       // first order date this cost applies to
+  note          String?                        // optional reason (e.g. "vendor price increase Feb 2026")
+  createdAt     DateTime @default(now())
+
+  product       Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([productId, effectiveDate])
 }
 
 // Orders

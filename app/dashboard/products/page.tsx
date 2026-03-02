@@ -228,22 +228,12 @@ export default function ProductsPage() {
     })
   }
 
-  const handleSaveCOGS = async (productId: string, newBaseCost: number) => {
-    try {
-      const res = await fetch(`/api/products/${productId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ baseCost: newBaseCost }),
-      })
-      if (res.ok) {
-        setEditingVariant(null)
-        fetchProducts()
-        success(t("updated"))
-      } else {
-        const data = await res.json()
-        error(data.error || t("error"))
-      }
-    } catch (e) { error(t("error")) }
+  const handleSaveCOGS = async (_productId: string, _newBaseCost: number) => {
+    // The new EditCOGSModal already called POST /api/products/[id]/cost-history directly.
+    // Here we just close the modal and refresh the product list.
+    setEditingVariant(null)
+    fetchProducts()
+    success(t("updated"))
   }
 
   const handleExport = async () => {
@@ -650,6 +640,14 @@ export default function ProductsPage() {
 
 // ── Edit COGS Modal ───────────────────────────────────────────────────────────
 
+interface CostHistoryEntry {
+  id: string
+  cost: number
+  effectiveDate: string
+  note: string | null
+  createdAt: string
+}
+
 function EditCOGSModal({
   product,
   onClose,
@@ -662,52 +660,238 @@ function EditCOGSModal({
   notifyError: (message: string) => void
 }) {
   const t = useTranslations("products")
-  const [baseCost, setBaseCost] = useState(product.baseCost.toString())
+  const [tab, setTab] = useState<"update" | "history">("update")
+  const [cost, setCost] = useState(product.baseCost.toString())
+  const [effectiveDate, setEffectiveDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  )
+  const [note, setNote] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [history, setHistory] = useState<CostHistoryEntry[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const val = parseFloat(baseCost)
-    if (isNaN(val) || val < 0) { notifyError(t("invalidCogs")); return }
-    onSave(product.id, val)
+  const loadHistory = async () => {
+    setHistoryLoading(true)
+    try {
+      const res = await fetch(`/api/products/${product.id}/cost-history`)
+      if (res.ok) {
+        const data = await res.json()
+        setHistory(data.history)
+      }
+    } finally {
+      setHistoryLoading(false)
+    }
   }
+
+  const handleTabChange = (t: "update" | "history") => {
+    setTab(t)
+    if (t === "history") loadHistory()
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const val = parseFloat(cost)
+    if (isNaN(val) || val < 0) { notifyError(t("invalidCogs")); return }
+    setSaving(true)
+    try {
+      const res = await fetch(`/api/products/${product.id}/cost-history`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ cost: val, effectiveDate, note: note || null }),
+      })
+      if (res.ok) {
+        onSave(product.id, val)
+      } else {
+        const data = await res.json()
+        notifyError(data.error || t("error"))
+      }
+    } catch { notifyError(t("error")) }
+    finally { setSaving(false) }
+  }
+
+  const handleDelete = async (entryId: string) => {
+    setDeletingId(entryId)
+    try {
+      const res = await fetch(
+        `/api/products/${product.id}/cost-history?entryId=${entryId}`,
+        { method: "DELETE" }
+      )
+      if (res.ok) {
+        setHistory((prev) => prev.filter((h) => h.id !== entryId))
+      } else {
+        const data = await res.json()
+        notifyError(data.error || t("error"))
+      }
+    } catch { notifyError(t("error")) }
+    finally { setDeletingId(null) }
+  }
+
+  const fmt = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", minimumFractionDigits: 2 })
 
   return (
     <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full">
-        <div className="border-b border-gray-100 px-6 py-4">
-          <h3 className="text-xl font-bold text-gray-900">{t("editCogs")}</h3>
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg">
+        {/* Header */}
+        <div className="border-b border-gray-100 px-6 py-4 flex items-start justify-between">
+          <div>
+            <h3 className="text-base font-bold text-gray-900">{t("editCogs")}</h3>
+            <p className="text-xs text-gray-500 mt-0.5">{product.name} · SKU: {product.sku}</p>
+          </div>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 transition-colors mt-0.5">
+            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
         </div>
-        <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">{t("product")}</label>
-            <p className="text-sm font-medium text-gray-900">{product.name}</p>
-            <p className="text-xs text-gray-500">SKU: {product.sku}</p>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">{t("cogsLabel")}</label>
-            <input
-              type="number" step="0.01" min="0"
-              value={baseCost}
-              onChange={(e) => setBaseCost(e.target.value)}
-              className="block w-full rounded-xl border border-gray-200 px-4 py-2.5 text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-colors"
-              placeholder="0.00" autoFocus
-            />
-          </div>
-          <div className="flex items-center space-x-3 pt-4">
-            <button type="button" onClick={onClose} className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
-              {t("cancel")}
+
+        {/* Tabs */}
+        <div className="flex border-b border-gray-100">
+          {(["update", "history"] as const).map((tKey) => (
+            <button
+              key={tKey}
+              onClick={() => handleTabChange(tKey)}
+              className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
+                tab === tKey
+                  ? "text-indigo-600 border-b-2 border-indigo-600 bg-indigo-50/40"
+                  : "text-gray-500 hover:text-gray-700"
+              }`}
+            >
+              {tKey === "update" ? t("cogsUpdateTab") : t("cogsHistoryTab")}
             </button>
-            <button type="submit" className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all duration-200">
-              {t("save")}
-            </button>
+          ))}
+        </div>
+
+        {/* Update tab */}
+        {tab === "update" && (
+          <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                  {t("cogsLabel")} (USD)
+                </label>
+                <input
+                  type="number" step="0.01" min="0"
+                  value={cost}
+                  onChange={(e) => setCost(e.target.value)}
+                  className="block w-full rounded-xl border border-gray-200 px-3 py-2 text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-colors text-sm"
+                  placeholder="0.00" autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                  {t("cogsEffectiveDate")}
+                </label>
+                <input
+                  type="date"
+                  value={effectiveDate}
+                  onChange={(e) => setEffectiveDate(e.target.value)}
+                  className="block w-full rounded-xl border border-gray-200 px-3 py-2 text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-colors text-sm"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-semibold text-gray-600 mb-1.5 uppercase tracking-wide">
+                {t("cogsNote")} <span className="normal-case font-normal text-gray-400">({t("optional")})</span>
+              </label>
+              <input
+                type="text"
+                value={note}
+                onChange={(e) => setNote(e.target.value)}
+                className="block w-full rounded-xl border border-gray-200 px-3 py-2 text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-colors text-sm"
+                placeholder={t("cogsNotePlaceholder")}
+              />
+            </div>
+
+            <div className="rounded-xl bg-amber-50 border border-amber-100 px-4 py-3 text-xs text-amber-700">
+              {t("cogsEffectiveDateHint")}
+            </div>
+
+            <div className="flex gap-3 pt-1">
+              <button
+                type="button" onClick={onClose}
+                className="flex-1 px-4 py-2.5 rounded-xl border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                {t("cancel")}
+              </button>
+              <button
+                type="submit" disabled={saving}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 text-sm font-semibold text-white shadow-sm hover:shadow-md transition-all disabled:opacity-60"
+              >
+                {saving ? "..." : t("save")}
+              </button>
+            </div>
+          </form>
+        )}
+
+        {/* History tab */}
+        {tab === "history" && (
+          <div className="p-6">
+            {historyLoading ? (
+              <div className="flex justify-center py-8">
+                <div className="w-6 h-6 border-2 border-indigo-300 border-t-indigo-600 rounded-full animate-spin" />
+              </div>
+            ) : history.length === 0 ? (
+              <div className="text-center py-8 text-sm text-gray-400">{t("cogsNoHistory")}</div>
+            ) : (
+              <div className="space-y-1">
+                {history.map((entry, idx) => (
+                  <div
+                    key={entry.id}
+                    className={`flex items-start justify-between gap-4 rounded-xl px-4 py-3 ${idx === 0 ? "bg-indigo-50 border border-indigo-100" : "bg-gray-50"}`}
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold text-gray-900">{fmt.format(entry.cost)}</span>
+                        {idx === 0 && (
+                          <span className="inline-flex rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-semibold px-2 py-0.5">
+                            {t("cogsCurrentLabel")}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {t("cogsFrom")} {entry.effectiveDate}
+                        {entry.note && <> · <span className="italic">{entry.note}</span></>}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => handleDelete(entry.id)}
+                      disabled={deletingId === entry.id}
+                      className="shrink-0 text-gray-300 hover:text-red-500 transition-colors disabled:opacity-40 mt-0.5"
+                      title={t("delete")}
+                    >
+                      <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-        </form>
+        )}
       </div>
     </div>
   )
 }
 
 // ── Bulk Upload Modal ─────────────────────────────────────────────────────────
+
+const BULK_EXAMPLE_CSV =
+  "externalId,sku,baseCost\n" +
+  "123456789,SKU-001,15.50\n" +
+  "987654321,SKU-002,22.00\n" +
+  ",SKU-003,8.75\n"
+
+function downloadExampleCsv() {
+  const blob = new Blob([BULK_EXAMPLE_CSV], { type: "text/csv;charset=utf-8;" })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a")
+  a.href = url
+  a.download = "bulk-cogs-example.csv"
+  a.click()
+  URL.revokeObjectURL(url)
+}
 
 function BulkUploadModal({ stores, onClose, onSuccess, notifyError, notifySuccess }: {
   stores: Store[]
@@ -721,6 +905,9 @@ function BulkUploadModal({ stores, onClose, onSuccess, notifyError, notifySucces
   const [file, setFile] = useState<File | null>(null)
   const [uploading, setUploading] = useState(false)
   const [result, setResult] = useState<any>(null)
+  const [effectiveDate, setEffectiveDate] = useState(
+    new Date().toISOString().slice(0, 10)
+  )
 
   const handleUpload = async () => {
     if (!selectedStore || !file) { notifyError(t("uploadError")); return }
@@ -729,15 +916,19 @@ function BulkUploadModal({ stores, onClose, onSuccess, notifyError, notifySucces
       const text = await file.text()
       const parsed = Papa.parse(text, { header: true })
       const products = (parsed.data as any[])
-        .filter(r => r.sku && r.baseCost)
-        .map(r => ({ sku: r.sku.trim(), baseCost: parseFloat(r.baseCost) }))
+        .filter(r => (r.externalId || r.sku) && r.baseCost)
+        .map(r => ({
+          externalId: r.externalId ? String(r.externalId).trim() : undefined,
+          sku: r.sku ? String(r.sku).trim() : undefined,
+          baseCost: parseFloat(r.baseCost),
+        }))
 
       if (products.length === 0) { notifyError(t("noValidData")); setUploading(false); return }
 
       const res = await fetch("/api/products/bulk-update", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ storeId: selectedStore, products }),
+        body: JSON.stringify({ storeId: selectedStore, products, effectiveDate }),
       })
       const data = await res.json()
       if (res.ok) {
@@ -754,8 +945,17 @@ function BulkUploadModal({ stores, onClose, onSuccess, notifyError, notifySucces
   return (
     <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full">
-        <div className="border-b border-gray-100 px-6 py-4">
-          <h3 className="text-xl font-bold text-gray-900">Bulk Update COGS</h3>
+        <div className="border-b border-gray-100 px-6 py-4 flex items-center justify-between">
+          <h3 className="text-xl font-bold text-gray-900">{t("bulkUpdateTitle")}</h3>
+          <button
+            onClick={downloadExampleCsv}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 bg-indigo-50 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 transition-colors"
+          >
+            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+            </svg>
+            {t("bulkDownloadExample")}
+          </button>
         </div>
         <div className="p-6 space-y-5">
           <div>
@@ -769,6 +969,18 @@ function BulkUploadModal({ stores, onClose, onSuccess, notifyError, notifySucces
             />
           </div>
           <div>
+            <label className="block text-sm font-semibold text-gray-900 mb-2">{t("cogsEffectiveDate")}</label>
+            <input
+              type="date"
+              value={effectiveDate}
+              onChange={(e) => setEffectiveDate(e.target.value)}
+              className="block w-full rounded-xl border border-gray-200 px-3 py-2 text-sm text-gray-900 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-colors"
+            />
+            <p className="mt-1.5 text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-lg px-3 py-2">
+              {t("cogsEffectiveDateHint")}
+            </p>
+          </div>
+          <div>
             <label className="block text-sm font-semibold text-gray-900 mb-2">{t("uploadCsv")}</label>
             <input
               type="file" accept=".csv"
@@ -778,8 +990,9 @@ function BulkUploadModal({ stores, onClose, onSuccess, notifyError, notifySucces
             {file && <p className="mt-2 text-sm text-gray-600">Selected: <span className="font-medium">{file.name}</span></p>}
           </div>
           <div className="bg-indigo-50 rounded-xl border border-indigo-100 p-4">
-            <p className="text-sm font-semibold text-gray-900 mb-2">Format CSV:</p>
-            <pre className="text-xs text-gray-600 font-mono">{"sku,baseCost\nSKU-001,15.50\nSKU-002,22.00"}</pre>
+            <p className="text-sm font-semibold text-gray-900 mb-1.5">{t("bulkCsvFormat")}</p>
+            <pre className="text-xs text-gray-600 font-mono whitespace-pre">{"externalId,sku,baseCost\n123456789,SKU-001,15.50\n987654321,SKU-002,22.00\n,SKU-003,8.75"}</pre>
+            <p className="mt-2 text-xs text-gray-500">{t("bulkCsvFormatHint")}</p>
           </div>
           {result && (
             <div className={`rounded-xl border p-4 ${result.stats.updated > 0 ? "bg-green-50 border-green-100" : "bg-orange-50 border-orange-100"}`}>
@@ -789,6 +1002,9 @@ function BulkUploadModal({ stores, onClose, onSuccess, notifyError, notifySucces
                 <p>{t("updated")} {result.stats.updated}</p>
                 <p>{t("notFoundCount")} {result.stats.notFound}</p>
                 <p>{t("errors")} {result.stats.errors}</p>
+                {result.notFoundIds?.length > 0 && (
+                  <p className="text-orange-700 font-medium">{t("notFoundIds")}: {result.notFoundIds.join(", ")}</p>
+                )}
               </div>
             </div>
           )}
