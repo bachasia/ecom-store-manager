@@ -19,7 +19,8 @@ import {
   Settings,
   BarChart2,
   LogOut,
-  Shield
+  Shield,
+  UserCircle
 } from "lucide-react"
 
 const SYSTEM_ROLE_BADGE: Record<SystemRole, { label: string; className: string }> = {
@@ -27,7 +28,7 @@ const SYSTEM_ROLE_BADGE: Record<SystemRole, { label: string; className: string }
   USER: { label: "User", className: "bg-gray-100 text-gray-600" },
 }
 
-export default function DashboardNav({ userEmail }: { userEmail: string }) {
+export default function DashboardNav({ userEmail, userName }: { userEmail: string; userName?: string | null }) {
   const pathname = usePathname()
   const t = useTranslations('nav')
   const isViPath = pathname === "/vi" || pathname.startsWith("/vi/")
@@ -137,18 +138,25 @@ export default function DashboardNav({ userEmail }: { userEmail: string }) {
       </div>
 
       <div className="border-t border-gray-100 p-4 space-y-3">
-        {/* User Info */}
-        <div className="flex items-center px-3 py-2 rounded-xl hover:bg-gray-50 transition-colors duration-200">
+        {/* User Info — links to profile page */}
+        <Link
+          href={withLocale("/dashboard/profile")}
+          className={`flex items-center px-3 py-2 rounded-xl transition-colors duration-200 group ${
+            isActive("/dashboard/profile")
+              ? "bg-indigo-50 ring-1 ring-indigo-100"
+              : "hover:bg-gray-50"
+          }`}
+        >
           <div className="flex-shrink-0">
             <div className="w-9 h-9 bg-gradient-to-br from-indigo-600 to-indigo-500 rounded-lg flex items-center justify-center shadow-sm">
               <span className="text-white text-sm font-semibold">
-                {userEmail.charAt(0).toUpperCase()}
+                {(userName || userEmail).charAt(0).toUpperCase()}
               </span>
             </div>
           </div>
           <div className="ml-3 flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-900 truncate">
-              {userEmail.split('@')[0]}
+              {userName || userEmail.split('@')[0]}
             </p>
             <p className="text-xs text-gray-500 truncate">
               {userEmail}
@@ -159,7 +167,8 @@ export default function DashboardNav({ userEmail }: { userEmail: string }) {
               </span>
             )}
           </div>
-        </div>
+          <UserCircle className="w-4 h-4 text-gray-300 group-hover:text-indigo-400 transition-colors shrink-0 ml-1" />
+        </Link>
 
         <button
           type="button"

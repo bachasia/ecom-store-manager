@@ -22,7 +22,7 @@ export default async function DashboardLayout({
   return (
     <div className="flex h-screen bg-gradient-to-br from-gray-50 to-gray-100">
       {/* Sidebar */}
-      <DashboardNav userEmail={session.user?.email || ""} />
+      <DashboardNav userEmail={session.user?.email || ""} userName={session.user?.name} />
       
       {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">

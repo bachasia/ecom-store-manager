@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { SYSTEM_ROLE, type SystemRole } from "@/lib/roles"
-import { Shield, Trash2, ChevronDown, UserPlus, X } from "lucide-react"
+import { Shield, Trash2, ChevronDown, UserPlus, X, Eye, EyeOff, RefreshCw, Copy, Check } from "lucide-react"
 
 interface User {
   id: string
@@ -23,6 +23,24 @@ const ROLE_COLORS: Record<SystemRole, string> = {
   USER: "bg-gray-100 text-gray-700",
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const CHARSET = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#$%&"
+
+function generatePassword(length = 12): string {
+  // Guarantee at least one of each: lowercase, uppercase, digit, symbol
+  const lower   = "abcdefghijkmnpqrstuvwxyz"
+  const upper   = "ABCDEFGHJKLMNPQRSTUVWXYZ"
+  const digits  = "23456789"
+  const symbols = "!@#$%&"
+  const pick = (s: string) => s[Math.floor(Math.random() * s.length)]
+  const required = [pick(lower), pick(upper), pick(digits), pick(symbols)]
+  const rest = Array.from({ length: length - required.length }, () =>
+    pick(CHARSET)
+  )
+  return [...required, ...rest].sort(() => Math.random() - 0.5).join("")
+}
+
 // ── Add User Modal ────────────────────────────────────────────────────────────
 
 interface AddUserModalProps {
@@ -34,8 +52,28 @@ function AddUserModal({ onClose, onSuccess }: AddUserModalProps) {
   const [form, setForm] = useState<{ name: string; email: string; password: string; systemRole: SystemRole }>({
     name: "", email: "", password: "", systemRole: SYSTEM_ROLE.USER,
   })
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState<string | null>(null)
+  const [saving, setSaving]     = useState(false)
+  const [error, setError]       = useState<string | null>(null)
+  const [showPass, setShowPass] = useState(false)
+  const [copied, setCopied]     = useState(false)
+
+  function handleGenerate() {
+    const pwd = generatePassword(12)
+    setForm(f => ({ ...f, password: pwd }))
+    setShowPass(true) // show so the user can see the generated value
+    setCopied(false)
+  }
+
+  async function handleCopy() {
+    if (!form.password) return
+    try {
+      await navigator.clipboard.writeText(form.password)
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    } catch {
+      // clipboard not available — silently ignore
+    }
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -84,9 +122,7 @@ function AddUserModal({ onClose, onSuccess }: AddUserModalProps) {
           )}
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Name
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">Name</label>
             <input
               type="text"
               value={form.name}
@@ -111,24 +147,57 @@ function AddUserModal({ onClose, onSuccess }: AddUserModalProps) {
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Password <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="password"
-              required
-              minLength={6}
-              value={form.password}
-              onChange={(e) => setForm(f => ({ ...f, password: e.target.value }))}
-              placeholder="Min. 6 characters"
-              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition"
-            />
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-sm font-medium text-gray-700">
+                Password <span className="text-red-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={handleGenerate}
+                className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 hover:text-indigo-700 transition-colors"
+              >
+                <RefreshCw className="w-3 h-3" />
+                Generate
+              </button>
+            </div>
+            <div className="relative">
+              <input
+                type={showPass ? "text" : "password"}
+                required
+                minLength={6}
+                value={form.password}
+                onChange={(e) => setForm(f => ({ ...f, password: e.target.value }))}
+                placeholder="Min. 6 characters"
+                className={`w-full px-3 py-2.5 pr-20 rounded-xl border border-gray-200 text-sm focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 outline-none transition ${form.password ? "font-mono" : ""}`}
+              />
+              {/* Show/hide toggle */}
+              <button
+                type="button"
+                onClick={() => setShowPass(s => !s)}
+                className="absolute right-9 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 transition-colors"
+                tabIndex={-1}
+              >
+                {showPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
+              {/* Copy button */}
+              <button
+                type="button"
+                onClick={handleCopy}
+                disabled={!form.password}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400 hover:text-indigo-600 transition-colors disabled:opacity-30"
+                tabIndex={-1}
+                title="Copy password"
+              >
+                {copied ? <Check className="w-4 h-4 text-green-500" /> : <Copy className="w-4 h-4" />}
+              </button>
+            </div>
+            {form.password && (
+              <PasswordStrength password={form.password} />
+            )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              System Role
-            </label>
+            <label className="block text-sm font-medium text-gray-700 mb-1.5">System Role</label>
             <select
               value={form.systemRole}
               onChange={(e) => setForm(f => ({ ...f, systemRole: e.target.value as SystemRole }))}
@@ -158,6 +227,34 @@ function AddUserModal({ onClose, onSuccess }: AddUserModalProps) {
           </div>
         </form>
       </div>
+    </div>
+  )
+}
+
+// ── Password strength indicator ───────────────────────────────────────────────
+
+function PasswordStrength({ password }: { password: string }) {
+  const checks = [
+    password.length >= 8,
+    /[A-Z]/.test(password),
+    /[0-9]/.test(password),
+    /[^a-zA-Z0-9]/.test(password),
+  ]
+  const score = checks.filter(Boolean).length  // 0-4
+
+  const bar = score <= 1 ? { w: "w-1/4", color: "bg-red-400",    label: "Weak" }
+            : score === 2 ? { w: "w-2/4", color: "bg-orange-400", label: "Fair" }
+            : score === 3 ? { w: "w-3/4", color: "bg-yellow-400", label: "Good" }
+            :               { w: "w-full", color: "bg-green-500",  label: "Strong" }
+
+  return (
+    <div className="mt-2 space-y-1">
+      <div className="h-1 w-full rounded-full bg-gray-100 overflow-hidden">
+        <div className={`h-full rounded-full transition-all duration-300 ${bar.w} ${bar.color}`} />
+      </div>
+      <p className={`text-xs font-medium ${
+        score <= 1 ? "text-red-500" : score === 2 ? "text-orange-500" : score === 3 ? "text-yellow-600" : "text-green-600"
+      }`}>{bar.label}</p>
     </div>
   )
 }
