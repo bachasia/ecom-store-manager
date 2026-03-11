@@ -346,12 +346,49 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
   const tCommon = useTranslations('common')
   const [order, setOrder] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [vendorRefundInput, setVendorRefundInput] = useState("")
+  const [savingVendorRefund, setSavingVendorRefund] = useState(false)
+  const [vendorRefundMsg, setVendorRefundMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
   useEffect(() => {
-    fetch(`/api/orders/${orderId}`).then(r => r.json()).then(d => { setOrder(d); setLoading(false) })
+    fetch(`/api/orders/${orderId}`).then(r => r.json()).then(d => {
+      setOrder(d)
+      setVendorRefundInput(String(Number(d?.order?.vendorRefundAmount ?? 0)))
+      setLoading(false)
+    })
   }, [orderId])
 
   const formatCurrency = (v: number) => new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(v)
+
+  const handleSaveVendorRefund = async () => {
+    const amount = parseFloat(vendorRefundInput)
+    if (isNaN(amount) || amount < 0) {
+      setVendorRefundMsg({ type: 'error', text: t('vendorRefundError') })
+      return
+    }
+    setSavingVendorRefund(true)
+    setVendorRefundMsg(null)
+    try {
+      const res = await fetch(`/api/orders/${orderId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vendorRefundAmount: amount }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        // Refresh order data to reflect new P&L
+        const refreshed = await fetch(`/api/orders/${orderId}`).then(r => r.json())
+        setOrder(refreshed)
+        setVendorRefundMsg({ type: 'success', text: t('vendorRefundSaved') })
+      } else {
+        setVendorRefundMsg({ type: 'error', text: data.error || t('vendorRefundError') })
+      }
+    } catch {
+      setVendorRefundMsg({ type: 'error', text: t('vendorRefundError') })
+    } finally {
+      setSavingVendorRefund(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 bg-gray-900/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
@@ -392,10 +429,63 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                 </dl>
               </div>
             </div>
+
+            {/* Vendor Refund Input */}
+            <div className="border-t pt-6">
+              <h4 className="text-sm font-semibold text-gray-900 mb-2">{t('vendorRefundLabel')}</h4>
+              <p className="text-xs text-gray-500 mb-3">{t('vendorRefundHint')}</p>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm">$</span>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={vendorRefundInput}
+                    onChange={(e) => setVendorRefundInput(e.target.value)}
+                    className="pl-7 pr-4 py-2 w-40 rounded-xl border border-gray-200 text-sm focus:border-teal-500 focus:ring-2 focus:ring-teal-500/20"
+                  />
+                </div>
+                <button
+                  onClick={handleSaveVendorRefund}
+                  disabled={savingVendorRefund}
+                  className="px-4 py-2 rounded-xl bg-teal-600 text-white text-sm font-medium hover:bg-teal-700 disabled:opacity-60 transition-colors"
+                >
+                  {savingVendorRefund ? tCommon('loading') : tCommon('save')}
+                </button>
+                {vendorRefundMsg && (
+                  <span className={`text-sm ${vendorRefundMsg.type === 'success' ? 'text-teal-600' : 'text-red-600'}`}>
+                    {vendorRefundMsg.text}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* P&L Breakdown */}
             <div className="border-t pt-6">
               <h4 className="text-sm font-semibold text-gray-900 mb-4">P&L Breakdown</h4>
               <div className="bg-gray-50 rounded-xl p-4 space-y-3">
-                <div className="flex justify-between text-sm"><span className="text-gray-600">{t('revenue')}:</span><span className="font-semibold">{formatCurrency(order.plBreakdown.revenue)}</span></div>
+                {/* GMV & Refunds */}
+                <div className="flex justify-between text-sm">
+                  <span className="text-gray-600">GMV (tổng bán):</span>
+                  <span className="font-semibold text-emerald-700">{formatCurrency(order.plBreakdown.gmv)}</span>
+                </div>
+                {order.plBreakdown.customerRefund > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">{t('refundAmount')}:</span>
+                    <span className="font-semibold text-amber-600">-{formatCurrency(order.plBreakdown.customerRefund)}</span>
+                  </div>
+                )}
+                {order.plBreakdown.vendorRefund > 0 && (
+                  <div className="flex justify-between text-sm">
+                    <span className="text-gray-600">{t('vendorRefundAmount')}:</span>
+                    <span className="font-semibold text-teal-600">+{formatCurrency(order.plBreakdown.vendorRefund)}</span>
+                  </div>
+                )}
+                <div className="flex justify-between text-sm border-t pt-2">
+                  <span className="text-gray-600">{t('revenue')}:</span>
+                  <span className="font-semibold">{formatCurrency(order.plBreakdown.revenue)}</span>
+                </div>
                 <div className="flex justify-between text-sm"><span className="text-gray-600">COGS:</span><span className="font-semibold text-red-600">-{formatCurrency(order.plBreakdown.cogs)}</span></div>
                 <div className="flex justify-between text-sm border-t pt-2"><span className="text-gray-600">{t('grossProfit')}:</span><span className="font-semibold">{formatCurrency(order.plBreakdown.grossProfit)}</span></div>
                 <div className="flex justify-between text-sm"><span className="text-gray-600">Transaction fee:</span><span className="font-semibold text-red-600">-{formatCurrency(order.plBreakdown.transactionFee)}</span></div>
@@ -404,6 +494,7 @@ function OrderDetailModal({ orderId, onClose }: { orderId: string; onClose: () =
                 <div className="flex justify-between text-sm"><span className="text-gray-600">{t('profitMargin')}:</span><span className="font-semibold">{order.plBreakdown.profitMargin.toFixed(1)}%</span></div>
               </div>
             </div>
+
             {order.order.orderItems?.length > 0 && (
               <div className="border-t pt-6">
                 <h4 className="text-sm font-semibold text-gray-900 mb-4">{t('products', { count: order.order.orderItems.length })}</h4>

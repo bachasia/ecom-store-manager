@@ -57,9 +57,9 @@ export async function GET(req: Request) {
       where.orderDate = dateFilter
     }
 
-    // Only include completed orders
+    // Include completed + refunded orders
     where.status = {
-      in: ['completed', 'processing', 'paid', 'authorized']
+      in: ['completed', 'processing', 'paid', 'authorized', 'refunded']
     }
 
     // Fetch orders with necessary data
@@ -71,6 +71,7 @@ export async function GET(req: Request) {
         orderDate: true,
         total: true,
         refundAmount: true,
+        vendorRefundAmount: true,
         totalCOGS: true,
         transactionFee: true,
         allocatedAdsCost: true,
@@ -106,6 +107,7 @@ export async function GET(req: Request) {
       orderDate: order.orderDate,
       total: Number(order.total),
       refundAmount: Number(order.refundAmount),
+      vendorRefundAmount: Number(order.vendorRefundAmount),
       totalCOGS: Number(order.totalCOGS),
       transactionFee: Number(order.transactionFee),
       allocatedAdsCost: Number(order.allocatedAdsCost),

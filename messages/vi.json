@@ -10,6 +10,10 @@
   },
   "kpi": {
     "totalRevenue": "Tổng Doanh Thu",
+    "gmv": "GMV",
+    "netRevenue": "Doanh Thu Thuần",
+    "customerRefund": "Hoàn Tiền Khách",
+    "vendorRefund": "NCC Hoàn Tiền",
     "netProfit": "Lợi Nhuận Ròng",
     "profitMargin": "Tỷ Suất Lợi Nhuận",
     "roas": "ROAS",
@@ -100,6 +104,12 @@
     "adCost": "Chi phí quảng cáo:",
     "netProfit": "Lợi nhuận ròng:",
     "profitMargin": "Tỷ suất lợi nhuận:",
+    "refundAmount": "Hoàn tiền khách:",
+    "vendorRefundAmount": "NCC hoàn tiền:",
+    "vendorRefundLabel": "NCC Hoàn Tiền (Vendor Refund)",
+    "vendorRefundHint": "Số tiền nhà cung cấp hoàn lại cho shop (giảm chi phí, tăng lợi nhuận)",
+    "vendorRefundSaved": "Đã lưu vendor refund",
+    "vendorRefundError": "Lỗi khi lưu vendor refund",
     "products": "Sản phẩm ({count})",
     "sku": "SKU: {sku} - Số lượng: {quantity}"
   },

@@ -72,7 +72,7 @@ export async function GET(req: Request) {
 
     const orderWhere: any = {
       storeId: { in: storeIds },
-      status: { in: ["completed", "processing", "paid", "authorized"] },
+      status: { in: ["completed", "processing", "paid", "authorized", "refunded"] },
     }
     if (dateFilter) orderWhere.orderDate = dateFilter
 

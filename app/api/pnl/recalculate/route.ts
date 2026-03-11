@@ -110,6 +110,7 @@ export async function POST(req: Request) {
         id: allocatedOrder.id,
         total: Number(originalOrder.total),
         refundAmount: Number(originalOrder.refundAmount),
+        vendorRefundAmount: Number((originalOrder as any).vendorRefundAmount ?? 0),
         totalCOGS: Number(originalOrder.totalCOGS),
         transactionFee: Number(originalOrder.transactionFee),
         allocatedAdsCost: allocatedOrder.allocatedAdsCost || 0,

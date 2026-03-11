@@ -10,6 +10,10 @@
   },
   "kpi": {
     "totalRevenue": "Total Revenue",
+    "gmv": "GMV",
+    "netRevenue": "Net Revenue",
+    "customerRefund": "Customer Refund",
+    "vendorRefund": "Vendor Refund",
     "netProfit": "Net Profit",
     "profitMargin": "Profit Margin",
     "roas": "ROAS",
@@ -102,6 +106,12 @@
     "adCost": "Ad cost",
     "netProfit": "Net profit",
     "profitMargin": "Profit margin",
+    "refundAmount": "Customer refund:",
+    "vendorRefundAmount": "Vendor refund:",
+    "vendorRefundLabel": "Vendor Refund",
+    "vendorRefundHint": "Amount refunded by the vendor to the shop (reduces cost, increases profit)",
+    "vendorRefundSaved": "Vendor refund saved",
+    "vendorRefundError": "Error saving vendor refund",
     "products": "Products ({count})",
     "sku": "SKU: {sku} - Quantity: {quantity}"
   },

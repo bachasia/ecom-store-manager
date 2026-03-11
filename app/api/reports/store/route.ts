@@ -42,7 +42,7 @@ export async function GET(req: Request) {
     const timezone = await getUserTimezone(session.user.id)
     const orderWhere: any = {
       storeId: { in: storeIds },
-      status: { in: ["completed", "processing", "paid", "authorized"] },
+      status: { in: ["completed", "processing", "paid", "authorized", "refunded"] },
     }
     const dateFilter = buildDateRangeFilter(startDate, endDate, timezone)
     if (dateFilter) orderWhere.orderDate = dateFilter
@@ -55,6 +55,7 @@ export async function GET(req: Request) {
         orderDate: true,
         total: true,
         refundAmount: true,
+        vendorRefundAmount: true,
         totalCOGS: true,
         transactionFee: true,
         allocatedAdsCost: true,
@@ -68,6 +69,9 @@ export async function GET(req: Request) {
     interface StoreAgg {
       storeId: string
       orders: number
+      gmv: number
+      customerRefund: number
+      vendorRefund: number
       revenue: number
       cogs: number
       adsCost: number
@@ -82,6 +86,9 @@ export async function GET(req: Request) {
       const agg = storeAggMap.get(order.storeId) || {
         storeId: order.storeId,
         orders: 0,
+        gmv: 0,
+        customerRefund: 0,
+        vendorRefund: 0,
         revenue: 0,
         cogs: 0,
         adsCost: 0,
@@ -89,8 +96,14 @@ export async function GET(req: Request) {
         grossProfit: 0,
         netProfit: 0,
       }
+      const gmv = Number(order.total)
+      const customerRefund = Number(order.refundAmount)
+      const vendorRefund = Number((order as any).vendorRefundAmount ?? 0)
       agg.orders += 1
-      agg.revenue += Number(order.total) - Number(order.refundAmount)
+      agg.gmv += gmv
+      agg.customerRefund += customerRefund
+      agg.vendorRefund += vendorRefund
+      agg.revenue += gmv - customerRefund
       agg.cogs += Number(order.totalCOGS)
       agg.adsCost += Number(order.allocatedAdsCost)
       agg.transactionFees += Number(order.transactionFee)
@@ -110,6 +123,9 @@ export async function GET(req: Request) {
           storeName: store?.name ?? "Unknown",
           platform: store?.platform ?? "unknown",
           orders: agg.orders,
+          gmv: Math.round(agg.gmv * 100) / 100,
+          customerRefund: Math.round(agg.customerRefund * 100) / 100,
+          vendorRefund: Math.round(agg.vendorRefund * 100) / 100,
           revenue: Math.round(agg.revenue * 100) / 100,
           cogs: Math.round(agg.cogs * 100) / 100,
           adsCost: Math.round(agg.adsCost * 100) / 100,

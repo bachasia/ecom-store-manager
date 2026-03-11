@@ -202,6 +202,9 @@ export default function DashboardPage() {
 
       {/* KPI Cards */}
       <KPICards
+        gmv={plData?.gmv || 0}
+        customerRefund={plData?.customerRefund || 0}
+        vendorRefund={plData?.vendorRefund || 0}
         revenue={plData?.revenue || 0}
         netProfit={plData?.netProfit || 0}
         profitMargin={plData?.profitMargin || 0}

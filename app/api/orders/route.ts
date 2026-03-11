@@ -102,6 +102,7 @@ export async function GET(req: Request) {
         id: order.id,
         total: Number(order.total),
         refundAmount: Number(order.refundAmount),
+        vendorRefundAmount: Number((order as any).vendorRefundAmount ?? 0),
         totalCOGS: Number(order.totalCOGS),
         transactionFee: Number(order.transactionFee),
         allocatedAdsCost: Number(order.allocatedAdsCost),

@@ -60,7 +60,7 @@ export async function GET(req: Request) {
     const timezone = await getUserTimezone(session.user.id)
     const orderWhere: any = {
       storeId: { in: storeIds },
-      status: { in: ["completed", "processing", "paid", "authorized"] },
+      status: { in: ["completed", "processing", "paid", "authorized", "refunded"] },
     }
     const dateFilter = buildDateRangeFilter(startDate, endDate, timezone)
     if (dateFilter) orderWhere.orderDate = dateFilter

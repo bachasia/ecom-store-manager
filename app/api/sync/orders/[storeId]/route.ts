@@ -401,7 +401,11 @@ export async function POST(
               0
             )
 
-            const refundTotal = 0 // Shopbase doesn't provide refund info in basic order object
+            // Shopbase doesn't provide refund amount in basic order object.
+            // If financial_status === 'refunded', treat as full refund (refundAmount = total).
+            // This is conservative but correct: Shopbase marks the whole order as refunded.
+            const orderTotal = parseFloat(sourceOrder.total_price)
+            const refundTotal = (sourceOrder.financial_status === 'refunded') ? orderTotal : 0
 
             // Get payment gateway for transaction fee calculation
             const rawPaymentMethod = [

@@ -2,6 +2,20 @@
  * P&L (Profit & Loss) Calculation Engine
  * 
  * Calculates profit metrics for orders and aggregated data
+ * 
+ * Revenue definitions:
+ *   GMV          = Σ order.total  (giá trị bán ra, không trừ refund)
+ *   customerRefund = Σ refundAmount  (tiền hoàn lại cho khách)
+ *   revenue (Net Revenue) = GMV - customerRefund
+ *   vendorRefund   = Σ vendorRefundAmount  (NCC hoàn lại → giảm chi phí, tăng profit)
+ *
+ * P&L formula:
+ *   Net Revenue   = GMV - customerRefund
+ *   Net COGS      = totalCOGS - vendorRefund
+ *   Gross Profit  = Net Revenue - Net COGS
+ *   Net Profit    = Gross Profit - transactionFees - adsCosts
+ *   Profit Margin = Net Profit / Net Revenue × 100
+ *   ROAS          = Net Revenue / adsCosts
  */
 
 import { utcToLocalYMD } from "@/lib/utils/timezone"
@@ -10,15 +24,19 @@ interface Order {
   id: string
   total: number
   refundAmount: number
+  vendorRefundAmount: number
   totalCOGS: number
   transactionFee: number
   allocatedAdsCost: number
 }
 
 interface PLMetrics {
-  revenue: number
-  cogs: number
-  grossProfit: number
+  gmv: number             // Gross Merchandise Value = Σ order.total
+  customerRefund: number  // Tiền hoàn lại cho khách
+  vendorRefund: number    // NCC hoàn lại (giảm chi phí)
+  revenue: number         // Net Revenue = gmv - customerRefund (backward compat key)
+  cogs: number            // Gross COGS (trước khi trừ vendor refund)
+  grossProfit: number     // Net Revenue - (COGS - vendorRefund)
   grossMargin: number
   transactionFees: number
   adsCosts: number
@@ -29,25 +47,25 @@ interface PLMetrics {
 
 /**
  * Calculate P&L metrics for a single order
- * 
- * @param order - Order with financial data
- * @returns P&L metrics
  */
 export function calculateOrderPL(order: Order): {
   grossProfit: number
   netProfit: number
   profitMargin: number
 } {
-  // Revenue = Total - Refunds
+  // Net Revenue = Total - Customer Refund
   const revenue = Number(order.total) - Number(order.refundAmount)
   
-  // Gross Profit = Revenue - COGS
-  const grossProfit = revenue - Number(order.totalCOGS)
+  // Net COGS = COGS - Vendor Refund (vendor refund reduces cost)
+  const netCOGS = Number(order.totalCOGS) - Number(order.vendorRefundAmount)
+  
+  // Gross Profit = Net Revenue - Net COGS
+  const grossProfit = revenue - netCOGS
   
   // Net Profit = Gross Profit - Transaction Fee - Ads Cost
   const netProfit = grossProfit - Number(order.transactionFee) - Number(order.allocatedAdsCost)
   
-  // Profit Margin = (Net Profit / Revenue) × 100
+  // Profit Margin = (Net Profit / Net Revenue) × 100
   const profitMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0
   
   return {
@@ -59,13 +77,13 @@ export function calculateOrderPL(order: Order): {
 
 /**
  * Calculate aggregated P&L metrics for multiple orders
- * 
- * @param orders - Array of orders
- * @returns Aggregated P&L metrics
  */
 export function calculateAggregatePL(orders: Order[]): PLMetrics {
   if (orders.length === 0) {
     return {
+      gmv: 0,
+      customerRefund: 0,
+      vendorRefund: 0,
       revenue: 0,
       cogs: 0,
       grossProfit: 0,
@@ -78,25 +96,29 @@ export function calculateAggregatePL(orders: Order[]): PLMetrics {
     }
   }
 
-  // Sum all values
-  const totalRevenue = orders.reduce((sum, order) => {
-    return sum + Number(order.total) - Number(order.refundAmount)
-  }, 0)
+  // GMV = sum of order totals (before customer refund)
+  const gmv = orders.reduce((sum, order) => sum + Number(order.total), 0)
 
-  const totalCOGS = orders.reduce((sum, order) => {
-    return sum + Number(order.totalCOGS)
-  }, 0)
+  // Customer refund
+  const totalCustomerRefund = orders.reduce((sum, order) => sum + Number(order.refundAmount), 0)
 
-  const totalTransactionFees = orders.reduce((sum, order) => {
-    return sum + Number(order.transactionFee)
-  }, 0)
+  // Net Revenue
+  const totalRevenue = gmv - totalCustomerRefund
 
-  const totalAdsCosts = orders.reduce((sum, order) => {
-    return sum + Number(order.allocatedAdsCost)
-  }, 0)
+  // Vendor refund (reduces COGS)
+  const totalVendorRefund = orders.reduce((sum, order) => sum + Number(order.vendorRefundAmount), 0)
 
-  // Calculate metrics
-  const grossProfit = totalRevenue - totalCOGS
+  // Gross COGS (before vendor refund)
+  const totalCOGS = orders.reduce((sum, order) => sum + Number(order.totalCOGS), 0)
+
+  // Net COGS = COGS - Vendor Refund
+  const netCOGS = totalCOGS - totalVendorRefund
+
+  const totalTransactionFees = orders.reduce((sum, order) => sum + Number(order.transactionFee), 0)
+  const totalAdsCosts = orders.reduce((sum, order) => sum + Number(order.allocatedAdsCost), 0)
+
+  // Gross Profit = Net Revenue - Net COGS
+  const grossProfit = totalRevenue - netCOGS
   const grossMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
   
   const netProfit = grossProfit - totalTransactionFees - totalAdsCosts
@@ -105,6 +127,9 @@ export function calculateAggregatePL(orders: Order[]): PLMetrics {
   const roas = totalAdsCosts > 0 ? totalRevenue / totalAdsCosts : null
 
   return {
+    gmv: Math.round(gmv * 100) / 100,
+    customerRefund: Math.round(totalCustomerRefund * 100) / 100,
+    vendorRefund: Math.round(totalVendorRefund * 100) / 100,
     revenue: Math.round(totalRevenue * 100) / 100,
     cogs: Math.round(totalCOGS * 100) / 100,
     grossProfit: Math.round(grossProfit * 100) / 100,
@@ -119,9 +144,6 @@ export function calculateAggregatePL(orders: Order[]): PLMetrics {
 
 /**
  * Calculate P&L metrics by date range
- * 
- * @param orders - Array of orders with orderDate
- * @returns Map of date to P&L metrics
  */
 export function calculatePLByDate(
   orders: (Order & { orderDate: Date })[],
@@ -129,7 +151,6 @@ export function calculatePLByDate(
 ): Map<string, PLMetrics> {
   const ordersByDate = new Map<string, (Order & { orderDate: Date })[]>()
 
-  // Group orders by date
   orders.forEach(order => {
     const dateKey = utcToLocalYMD(order.orderDate, timezone)
     const ordersForDate = ordersByDate.get(dateKey) || []
@@ -137,12 +158,9 @@ export function calculatePLByDate(
     ordersByDate.set(dateKey, ordersForDate)
   })
 
-  // Calculate P&L for each date
   const plByDate = new Map<string, PLMetrics>()
-  
   ordersByDate.forEach((ordersForDate, dateKey) => {
-    const metrics = calculateAggregatePL(ordersForDate)
-    plByDate.set(dateKey, metrics)
+    plByDate.set(dateKey, calculateAggregatePL(ordersForDate))
   })
 
   return plByDate
@@ -150,9 +168,6 @@ export function calculatePLByDate(
 
 /**
  * Calculate P&L metrics by month
- * 
- * @param orders - Array of orders with orderDate
- * @returns Map of month (YYYY-MM) to P&L metrics
  */
 export function calculatePLByMonth(
   orders: (Order & { orderDate: Date })[],
@@ -160,7 +175,6 @@ export function calculatePLByMonth(
 ): Map<string, PLMetrics> {
   const ordersByMonth = new Map<string, (Order & { orderDate: Date })[]>()
 
-  // Group orders by month
   orders.forEach(order => {
     const monthKey = utcToLocalYMD(order.orderDate, timezone).substring(0, 7)
     const ordersForMonth = ordersByMonth.get(monthKey) || []
@@ -168,12 +182,9 @@ export function calculatePLByMonth(
     ordersByMonth.set(monthKey, ordersForMonth)
   })
 
-  // Calculate P&L for each month
   const plByMonth = new Map<string, PLMetrics>()
-  
   ordersByMonth.forEach((ordersForMonth, monthKey) => {
-    const metrics = calculateAggregatePL(ordersForMonth)
-    plByMonth.set(monthKey, metrics)
+    plByMonth.set(monthKey, calculateAggregatePL(ordersForMonth))
   })
 
   return plByMonth
@@ -181,9 +192,6 @@ export function calculatePLByMonth(
 
 /**
  * Calculate P&L metrics by product SKU
- * 
- * @param orderItems - Array of order items with order data
- * @returns Map of SKU to P&L metrics
  */
 export function calculatePLByProduct(
   orderItems: Array<{
@@ -196,48 +204,55 @@ export function calculatePLByProduct(
 ): Map<string, PLMetrics & { quantity: number; orders: number }> {
   const itemsBySKU = new Map<string, typeof orderItems>()
 
-  // Group items by SKU
   orderItems.forEach(item => {
     const items = itemsBySKU.get(item.sku) || []
     items.push(item)
     itemsBySKU.set(item.sku, items)
   })
 
-  // Calculate P&L for each SKU
   const plBySKU = new Map<string, PLMetrics & { quantity: number; orders: number }>()
   
   itemsBySKU.forEach((items, sku) => {
     const totalQuantity = items.reduce((sum, item) => sum + item.quantity, 0)
-    const totalRevenue = items.reduce((sum, item) => sum + Number(item.total), 0)
+    const gmv = items.reduce((sum, item) => sum + Number(item.total), 0)
     const totalCOGS = items.reduce((sum, item) => sum + Number(item.totalCost), 0)
     
-    // Allocate transaction fees and ads costs proportionally
-    const totalTransactionFees = items.reduce((sum, item) => {
-      const orderRevenue = Number(item.order.total) - Number(item.order.refundAmount)
-      const proportion = orderRevenue > 0 ? Number(item.total) / orderRevenue : 0
-      return sum + (Number(item.order.transactionFee) * proportion)
-    }, 0)
+    // Allocate transaction fees, ads costs, and vendor refund proportionally
+    let totalTransactionFees = 0
+    let totalAdsCosts = 0
+    let totalVendorRefund = 0
+    let totalCustomerRefund = 0
 
-    const totalAdsCosts = items.reduce((sum, item) => {
-      const orderRevenue = Number(item.order.total) - Number(item.order.refundAmount)
-      const proportion = orderRevenue > 0 ? Number(item.total) / orderRevenue : 0
-      return sum + (Number(item.order.allocatedAdsCost) * proportion)
-    }, 0)
+    items.forEach(item => {
+      const orderGMV = Number(item.order.total)
+      const orderRevenue = orderGMV - Number(item.order.refundAmount)
+      const proportion = orderGMV > 0
+        ? Math.min(Number(item.total) / orderGMV, 1) * (orderRevenue > 0 ? orderRevenue / orderGMV : 0)
+        : 0
+      totalTransactionFees += Number(item.order.transactionFee) * proportion
+      totalAdsCosts += Number(item.order.allocatedAdsCost) * proportion
+      totalVendorRefund += Number(item.order.vendorRefundAmount) * proportion
+      totalCustomerRefund += Number(item.order.refundAmount) * proportion
+    })
 
-    const grossProfit = totalRevenue - totalCOGS
-    const grossMargin = totalRevenue > 0 ? (grossProfit / totalRevenue) * 100 : 0
+    const revenue = gmv - totalCustomerRefund
+    const netCOGS = totalCOGS - totalVendorRefund
+    const grossProfit = revenue - netCOGS
+    const grossMargin = revenue > 0 ? (grossProfit / revenue) * 100 : 0
     
     const netProfit = grossProfit - totalTransactionFees - totalAdsCosts
-    const profitMargin = totalRevenue > 0 ? (netProfit / totalRevenue) * 100 : 0
+    const profitMargin = revenue > 0 ? (netProfit / revenue) * 100 : 0
     
-    const roas = totalAdsCosts > 0 ? totalRevenue / totalAdsCosts : null
-
+    const roas = totalAdsCosts > 0 ? revenue / totalAdsCosts : null
     const uniqueOrders = new Set(items.map(item => item.order.id)).size
 
     plBySKU.set(sku, {
       quantity: totalQuantity,
       orders: uniqueOrders,
-      revenue: Math.round(totalRevenue * 100) / 100,
+      gmv: Math.round(gmv * 100) / 100,
+      customerRefund: Math.round(totalCustomerRefund * 100) / 100,
+      vendorRefund: Math.round(totalVendorRefund * 100) / 100,
+      revenue: Math.round(revenue * 100) / 100,
       cogs: Math.round(totalCOGS * 100) / 100,
       grossProfit: Math.round(grossProfit * 100) / 100,
       grossMargin: Math.round(grossMargin * 100) / 100,
@@ -254,10 +269,6 @@ export function calculatePLByProduct(
 
 /**
  * Get top performing products by net profit
- * 
- * @param plByProduct - P&L metrics by product
- * @param limit - Number of top products to return
- * @returns Array of top products sorted by net profit
  */
 export function getTopProducts(
   plByProduct: Map<string, PLMetrics & { quantity: number; orders: number }>,

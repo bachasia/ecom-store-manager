@@ -57,7 +57,7 @@ export async function GET(req: Request) {
     const timezone = await getUserTimezone(session.user.id)
     const orderWhere: any = {
       storeId: { in: storeIds },
-      status: { in: ["completed", "processing", "paid", "authorized"] },
+      status: { in: ["completed", "processing", "paid", "authorized", "refunded"] },
     }
     // singleDate overrides startDate/endDate — fetch exactly one calendar day
     if (singleDate) {
@@ -76,6 +76,7 @@ export async function GET(req: Request) {
         orderDate: true,
         total: true,
         refundAmount: true,
+        vendorRefundAmount: true,
         totalCOGS: true,
         transactionFee: true,
         allocatedAdsCost: true,
@@ -93,6 +94,9 @@ export async function GET(req: Request) {
     interface DayMetrics {
       date: string
       orders: number
+      gmv: number
+      customerRefund: number
+      vendorRefund: number
       revenue: number
       cogs: number
       adsCost: number
@@ -110,11 +114,13 @@ export async function GET(req: Request) {
     const dayMap = new Map<DayKey, DayMetrics>()
     // drilldown: indexed by date → storeId → StoreMetrics (O(1) lookup, not O(n²) filter)
     const dayStoreIndex = new Map<DayKey, Map<StoreKey, StoreMetrics>>()
-    const dayStoreMap = new Map<string, StoreMetrics>() // key: "date::storeId"
 
     for (const order of orders) {
       const date = utcToLocalYMD(order.orderDate, timezone)
-      const revenue = Number(order.total) - Number(order.refundAmount)
+      const gmv = Number(order.total)
+      const customerRefund = Number(order.refundAmount)
+      const vendorRefund = Number((order as any).vendorRefundAmount ?? 0)
+      const revenue = gmv - customerRefund
       const cogs = Number(order.totalCOGS)
       const adsCost = Number(order.allocatedAdsCost)
       const txFees = Number(order.transactionFee)
@@ -125,6 +131,9 @@ export async function GET(req: Request) {
       const day = dayMap.get(date) || {
         date,
         orders: 0,
+        gmv: 0,
+        customerRefund: 0,
+        vendorRefund: 0,
         revenue: 0,
         cogs: 0,
         adsCost: 0,
@@ -133,6 +142,9 @@ export async function GET(req: Request) {
         netProfit: 0,
       }
       day.orders += 1
+      day.gmv += gmv
+      day.customerRefund += customerRefund
+      day.vendorRefund += vendorRefund
       day.revenue += revenue
       day.cogs += cogs
       day.adsCost += adsCost
@@ -151,6 +163,9 @@ export async function GET(req: Request) {
           storeName: storeMap.get(order.storeId)?.name ?? "Unknown",
           platform: storeMap.get(order.storeId)?.platform ?? "",
           orders: 0,
+          gmv: 0,
+          customerRefund: 0,
+          vendorRefund: 0,
           revenue: 0,
           cogs: 0,
           adsCost: 0,
@@ -159,6 +174,9 @@ export async function GET(req: Request) {
           netProfit: 0,
         }
         ds.orders += 1
+        ds.gmv += gmv
+        ds.customerRefund += customerRefund
+        ds.vendorRefund += vendorRefund
         ds.revenue += revenue
         ds.cogs += cogs
         ds.adsCost += adsCost
@@ -179,6 +197,9 @@ export async function GET(req: Request) {
         const result: any = {
           date: day.date,
           orders: day.orders,
+          gmv: Math.round(day.gmv * 100) / 100,
+          customerRefund: Math.round(day.customerRefund * 100) / 100,
+          vendorRefund: Math.round(day.vendorRefund * 100) / 100,
           revenue: Math.round(day.revenue * 100) / 100,
           cogs: Math.round(day.cogs * 100) / 100,
           adsCost: Math.round(day.adsCost * 100) / 100,
@@ -202,6 +223,9 @@ export async function GET(req: Request) {
                 storeName: ds.storeName,
                 platform: ds.platform,
                 orders: ds.orders,
+                gmv: Math.round(ds.gmv * 100) / 100,
+                customerRefund: Math.round(ds.customerRefund * 100) / 100,
+                vendorRefund: Math.round(ds.vendorRefund * 100) / 100,
                 revenue: Math.round(ds.revenue * 100) / 100,
                 cogs: Math.round(ds.cogs * 100) / 100,
                 adsCost: Math.round(ds.adsCost * 100) / 100,

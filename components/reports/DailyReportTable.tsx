@@ -12,6 +12,9 @@ export interface StoreDrilldown {
   storeName: string
   platform: string
   orders: number
+  gmv?: number
+  customerRefund?: number
+  vendorRefund?: number
   revenue: number
   cogs: number
   adsCost: number
@@ -25,6 +28,9 @@ export interface StoreDrilldown {
 export interface DailyRow {
   date: string
   orders: number
+  gmv?: number
+  customerRefund?: number
+  vendorRefund?: number
   revenue: number
   cogs: number
   adsCost: number
@@ -122,6 +128,13 @@ function StoreSubRow({ store }: { store: StoreDrilldown }) {
         </span>
       </td>
       <td className="px-3 py-2 text-right text-sm text-gray-600">{store.orders}</td>
+      <td className="px-3 py-2 text-right text-sm text-emerald-700">{fmt.format(store.gmv ?? store.revenue)}</td>
+      <td className="px-3 py-2 text-right text-sm text-amber-600">
+        {(store.customerRefund ?? 0) > 0 ? `-${fmt.format(store.customerRefund ?? 0)}` : "—"}
+      </td>
+      <td className="px-3 py-2 text-right text-sm text-teal-600">
+        {(store.vendorRefund ?? 0) > 0 ? `+${fmt.format(store.vendorRefund ?? 0)}` : "—"}
+      </td>
       <td className="px-3 py-2 text-right text-sm text-gray-700">{fmt.format(store.revenue)}</td>
       <td className="px-3 py-2 text-right text-sm text-gray-500">{fmt.format(store.cogs)}</td>
       <td className="px-3 py-2 text-right text-sm text-gray-500">{fmt.format(store.adsCost)}</td>
@@ -208,7 +221,10 @@ export default function DailyReportTable({
           <tr className="border-b border-gray-100 bg-gray-50/80">
             <th className="px-4 py-3 text-left font-semibold text-gray-700 whitespace-nowrap">Date</th>
             <th className="px-3 py-3 text-right font-semibold text-gray-700">Orders</th>
-            <th className="px-3 py-3 text-right font-semibold text-gray-700">Revenue</th>
+            <th className="px-3 py-3 text-right font-semibold text-emerald-700">GMV</th>
+            <th className="px-3 py-3 text-right font-semibold text-amber-600">Cust. Refund</th>
+            <th className="px-3 py-3 text-right font-semibold text-teal-600">Vendor Refund</th>
+            <th className="px-3 py-3 text-right font-semibold text-gray-700">Net Revenue</th>
             <th className="px-3 py-3 text-right font-semibold text-gray-700">COGS</th>
             <th className="px-3 py-3 text-right font-semibold text-gray-700">Ads Cost</th>
             <th className="px-3 py-3 text-right font-semibold text-gray-700">Tx Fees</th>
@@ -241,6 +257,13 @@ export default function DailyReportTable({
                     </span>
                   </td>
                   <td className="px-3 py-3 text-right text-gray-700">{row.orders}</td>
+                  <td className="px-3 py-3 text-right font-medium text-emerald-700">{fmt.format(row.gmv ?? row.revenue)}</td>
+                  <td className="px-3 py-3 text-right text-amber-600">
+                    {(row.customerRefund ?? 0) > 0 ? `-${fmt.format(row.customerRefund ?? 0)}` : "—"}
+                  </td>
+                  <td className="px-3 py-3 text-right text-teal-600">
+                    {(row.vendorRefund ?? 0) > 0 ? `+${fmt.format(row.vendorRefund ?? 0)}` : "—"}
+                  </td>
                   <td className="px-3 py-3 text-right font-medium text-gray-900">{fmt.format(row.revenue)}</td>
                   <td className="px-3 py-3 text-right text-gray-500">{fmt.format(row.cogs)}</td>
                   <td className="px-3 py-3 text-right text-gray-500">{fmt.format(row.adsCost)}</td>
@@ -262,7 +285,7 @@ export default function DailyReportTable({
                 {/* Drilldown loader */}
                 {isLoadingRow && (
                   <tr key={`${row.date}-loading`}>
-                    <td colSpan={10} className="py-2 pl-12 text-sm text-gray-400 italic">
+                    <td colSpan={13} className="py-2 pl-12 text-sm text-gray-400 italic">
                       Loading store breakdown…
                     </td>
                   </tr>
@@ -271,7 +294,7 @@ export default function DailyReportTable({
                 {/* Per-store drilldown rows */}
                 {isExpanded && !isLoadingRow && storeRows.length === 0 && (
                   <tr key={`${row.date}-empty`}>
-                    <td colSpan={10} className="py-2 pl-12 text-sm text-gray-400 italic">
+                    <td colSpan={13} className="py-2 pl-12 text-sm text-gray-400 italic">
                       No store data for this day.
                     </td>
                   </tr>
