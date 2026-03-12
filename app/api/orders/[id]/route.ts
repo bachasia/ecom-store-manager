@@ -69,7 +69,7 @@ export async function GET(
     }
 
     // Calculate P&L breakdown using the shared engine
-    const gmv = Number(fullOrder.total)
+    const gmv = Number(fullOrder.subtotal) + Number(fullOrder.shipping)
     const customerRefund = Number(fullOrder.refundAmount)
     const vendorRefund = Number(fullOrder.vendorRefundAmount)
     const revenue = gmv - customerRefund
@@ -135,6 +135,8 @@ export async function PATCH(
       where: { id },
       select: {
         storeId: true,
+        subtotal: true,
+        shipping: true,
         total: true,
         refundAmount: true,
         totalCOGS: true,
@@ -152,6 +154,8 @@ export async function PATCH(
     // Recalculate P&L with new vendorRefundAmount
     const pl = calculateOrderPL({
       id,
+      subtotal: Number(existingOrder.subtotal),
+      shipping: Number(existingOrder.shipping),
       total: Number(existingOrder.total),
       refundAmount: Number(existingOrder.refundAmount),
       vendorRefundAmount,

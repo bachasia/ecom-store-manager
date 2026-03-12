@@ -100,6 +100,8 @@ export async function GET(req: Request) {
     const ordersWithPL = orders.map(order => {
       const { grossProfit, netProfit, profitMargin } = calculateOrderPL({
         id: order.id,
+        subtotal: Number(order.subtotal),
+        shipping: Number(order.shipping),
         total: Number(order.total),
         refundAmount: Number(order.refundAmount),
         vendorRefundAmount: Number((order as any).vendorRefundAmount ?? 0),

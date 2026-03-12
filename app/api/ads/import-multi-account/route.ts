@@ -197,6 +197,8 @@ export async function POST(req: Request) {
             id: true,
             storeId: true,
             orderDate: true,
+            subtotal: true,
+            shipping: true,
             total: true,
             refundAmount: true,
             totalCOGS: true,
@@ -240,6 +242,8 @@ export async function POST(req: Request) {
 
             const pl = calculateOrderPL({
               id: allocatedOrder.id,
+              subtotal: Number((originalOrder as any).subtotal),
+              shipping: Number((originalOrder as any).shipping),
               total: Number(originalOrder.total),
               refundAmount: Number(originalOrder.refundAmount),
               vendorRefundAmount: Number((originalOrder as any).vendorRefundAmount ?? 0),

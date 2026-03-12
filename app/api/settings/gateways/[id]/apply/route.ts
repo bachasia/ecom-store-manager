@@ -115,6 +115,8 @@ export async function POST(
         storeId: true,
         paymentMethod: true,
         paymentGatewayId: true,
+        subtotal: true,
+        shipping: true,
         total: true,
         refundAmount: true,
         totalCOGS: true,
@@ -148,6 +150,8 @@ export async function POST(
 
       const pl = calculateOrderPL({
         id: order.id,
+        subtotal: Number(order.subtotal),
+        shipping: Number(order.shipping),
         total: Number(order.total),
         refundAmount: Number(order.refundAmount),
         vendorRefundAmount: Number((order as any).vendorRefundAmount ?? 0),

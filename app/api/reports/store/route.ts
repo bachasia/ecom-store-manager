@@ -53,6 +53,8 @@ export async function GET(req: Request) {
       select: {
         storeId: true,
         orderDate: true,
+        subtotal: true,
+        shipping: true,
         total: true,
         refundAmount: true,
         vendorRefundAmount: true,
@@ -96,9 +98,9 @@ export async function GET(req: Request) {
         grossProfit: 0,
         netProfit: 0,
       }
-      const gmv = Number(order.total)
+      const gmv = Number(order.subtotal) + Number(order.shipping)
       const customerRefund = Number(order.refundAmount)
-      const vendorRefund = Number((order as any).vendorRefundAmount ?? 0)
+      const vendorRefund = Number(order.vendorRefundAmount ?? 0)
       agg.orders += 1
       agg.gmv += gmv
       agg.customerRefund += customerRefund
@@ -170,7 +172,7 @@ export async function GET(req: Request) {
           adsCost: 0,
         }
         storeMetrics.revenue +=
-          Number(order.total) - Number(order.refundAmount)
+          (Number(order.subtotal) + Number(order.shipping)) - Number(order.refundAmount)
         storeMetrics.netProfit += Number(order.netProfit)
         storeMetrics.adsCost += Number(order.allocatedAdsCost)
         periodStores.set(order.storeId, storeMetrics)

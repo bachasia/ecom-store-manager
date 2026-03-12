@@ -64,6 +64,8 @@ export async function GET(req: Request) {
           select: {
             id: true,
             storeId: true,
+            subtotal: true,
+            shipping: true,
             total: true,
             refundAmount: true,
             vendorRefundAmount: true,
@@ -84,9 +86,11 @@ export async function GET(req: Request) {
       totalCost: Number(item.totalCost),
       order: {
         id: item.order.id,
+        subtotal: Number(item.order.subtotal),
+        shipping: Number(item.order.shipping),
         total: Number(item.order.total),
         refundAmount: Number(item.order.refundAmount),
-        vendorRefundAmount: Number((item.order as any).vendorRefundAmount ?? 0),
+        vendorRefundAmount: Number(item.order.vendorRefundAmount ?? 0),
         totalCOGS: Number(item.order.totalCOGS),
         transactionFee: Number(item.order.transactionFee),
         allocatedAdsCost: Number(item.order.allocatedAdsCost),

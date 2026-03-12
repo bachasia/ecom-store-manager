@@ -74,6 +74,8 @@ export async function GET(req: Request) {
         id: true,
         storeId: true,
         orderDate: true,
+        subtotal: true,
+        shipping: true,
         total: true,
         refundAmount: true,
         vendorRefundAmount: true,
@@ -117,9 +119,9 @@ export async function GET(req: Request) {
 
     for (const order of orders) {
       const date = utcToLocalYMD(order.orderDate, timezone)
-      const gmv = Number(order.total)
+      const gmv = Number(order.subtotal) + Number(order.shipping)
       const customerRefund = Number(order.refundAmount)
-      const vendorRefund = Number((order as any).vendorRefundAmount ?? 0)
+      const vendorRefund = Number(order.vendorRefundAmount ?? 0)
       const revenue = gmv - customerRefund
       const cogs = Number(order.totalCOGS)
       const adsCost = Number(order.allocatedAdsCost)

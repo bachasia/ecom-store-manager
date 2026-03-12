@@ -4,12 +4,13 @@
  * Calculates profit metrics for orders and aggregated data
  * 
  * Revenue definitions:
- *   GMV          = Σ order.total  (giá trị bán ra, không trừ refund)
+ *   GMV            = subtotal + shipping  (giá trị hàng + phí ship, không trừ bất kỳ khoản nào)
  *   customerRefund = Σ refundAmount  (tiền hoàn lại cho khách)
  *   revenue (Net Revenue) = GMV - customerRefund
  *   vendorRefund   = Σ vendorRefundAmount  (NCC hoàn lại → giảm chi phí, tăng profit)
  *
  * P&L formula:
+ *   GMV           = subtotal + shipping
  *   Net Revenue   = GMV - customerRefund
  *   Net COGS      = totalCOGS - vendorRefund
  *   Gross Profit  = Net Revenue - Net COGS
@@ -22,6 +23,8 @@ import { utcToLocalYMD } from "@/lib/utils/timezone"
 
 interface Order {
   id: string
+  subtotal: number
+  shipping: number
   total: number
   refundAmount: number
   vendorRefundAmount: number
@@ -31,7 +34,7 @@ interface Order {
 }
 
 interface PLMetrics {
-  gmv: number             // Gross Merchandise Value = Σ order.total
+  gmv: number             // Gross Merchandise Value = subtotal + shipping
   customerRefund: number  // Tiền hoàn lại cho khách
   vendorRefund: number    // NCC hoàn lại (giảm chi phí)
   revenue: number         // Net Revenue = gmv - customerRefund (backward compat key)
@@ -53,8 +56,9 @@ export function calculateOrderPL(order: Order): {
   netProfit: number
   profitMargin: number
 } {
-  // Net Revenue = Total - Customer Refund
-  const revenue = Number(order.total) - Number(order.refundAmount)
+  // GMV = subtotal + shipping; Net Revenue = GMV - Customer Refund
+  const gmv = Number(order.subtotal) + Number(order.shipping)
+  const revenue = gmv - Number(order.refundAmount)
   
   // Net COGS = COGS - Vendor Refund (vendor refund reduces cost)
   const netCOGS = Number(order.totalCOGS) - Number(order.vendorRefundAmount)
@@ -96,8 +100,8 @@ export function calculateAggregatePL(orders: Order[]): PLMetrics {
     }
   }
 
-  // GMV = sum of order totals (before customer refund)
-  const gmv = orders.reduce((sum, order) => sum + Number(order.total), 0)
+  // GMV = subtotal + shipping (không tính tax, không trừ discount, không trừ refund)
+  const gmv = orders.reduce((sum, order) => sum + Number(order.subtotal) + Number(order.shipping), 0)
 
   // Customer refund
   const totalCustomerRefund = orders.reduce((sum, order) => sum + Number(order.refundAmount), 0)
@@ -224,7 +228,7 @@ export function calculatePLByProduct(
     let totalCustomerRefund = 0
 
     items.forEach(item => {
-      const orderGMV = Number(item.order.total)
+      const orderGMV = Number(item.order.subtotal) + Number(item.order.shipping)
       const orderRevenue = orderGMV - Number(item.order.refundAmount)
       const proportion = orderGMV > 0
         ? Math.min(Number(item.total) / orderGMV, 1) * (orderRevenue > 0 ? orderRevenue / orderGMV : 0)
